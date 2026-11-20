@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Launcher shortcuts (res/xml/shortcuts.xml). Short labels: about 10 characters. -->
+    <string name="shortcut_add_short">Add card</string>
+    <string name="shortcut_add_long">Add a card</string>
+    <string name="shortcut_scan_short">Scan card</string>
+    <string name="shortcut_scan_long">Scan a card with camera</string>
+    <string name="shortcut_tap_short">Tap card</string>
+    <string name="shortcut_tap_long">Tap a card to read it</string>
+</resources>

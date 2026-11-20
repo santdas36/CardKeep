@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Themed-icon layer: only alpha counts, so the gap, stripe and dot are real holes (evenOdd cut-outs),
+  not colours. Same geometry as ic_launcher_fg.
+-->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <!-- Optical centring: the artwork's box sits high-left of the canvas centre, but the heavy white front
+         card pulls the eye down-right. This nudge puts the visual weight, not the box, in the middle. -->
+    <group android:translateX="1" android:translateY="3">
+        <!-- Back card, clipped so nothing is drawn inside the front card's gap outline. -->
+        <group>
+            <clip-path android:pathData="M0,0H108V108H0Z M39,41.5a7.5,7.5 0 0,0 -7.5,7.5v18a7.5,7.5 0 0,0 7.5,7.5H73a7.5,7.5 0 0,0 7.5,-7.5V49a7.5,7.5 0 0,0 -7.5,-7.5z" />
+            <group android:pivotX="52" android:pivotY="45" android:rotation="-14">
+                <path android:fillColor="#FFFFFFFF"
+                    android:pathData="M35,31h34a5,5 0 0,1 5,5v18a5,5 0 0,1 -5,5H35a5,5 0 0,1 -5,-5V36a5,5 0 0,1 5,-5z" />
+            </group>
+        </group>
+        <!-- Front card with the stripe and dot punched out. -->
+        <path android:fillColor="#FFFFFFFF" android:fillType="evenOdd"
+            android:pathData="M39,44h34a5,5 0 0,1 5,5v18a5,5 0 0,1 -5,5H39a5,5 0 0,1 -5,-5V49a5,5 0 0,1 5,-5z
+                M39,63.25h14a1.75,1.75 0 0,1 0,3.5H39a1.75,1.75 0 0,1 0,-3.5z
+                M71,65m-3.8,0a3.8,3.8 0 1,0 7.6,0a3.8,3.8 0 1,0 -7.6,0" />
+    </group>
+</vector>

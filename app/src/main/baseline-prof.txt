@@ -1,0 +1,5 @@
+# Baseline profile: precompile the app's own code ahead of time (libraries like Compose ship their own).
+# Hot paths are app start, the home stack, card faces / art and the tab pager; the whole package is
+# small enough to include outright.
+Lapp/duely/**;
+HSPLapp/duely/**->**(**)**
