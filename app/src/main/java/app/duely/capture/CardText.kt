@@ -3,7 +3,7 @@ package app.duely.capture
 import app.duely.domain.CardNumbers
 
 /** What the camera saw on a card. Pure text parsing, so it's unit-tested without a camera. */
-data class ScannedCard(val number: String?, val expiry: String?)
+data class ScannedCard(val number: String?, val expiry: String?, val issuer: String? = null)
 
 object CardText {
     // 4-4-4-4 (Visa/MC/RuPay), 4-6-5 (Amex), 4-6-4 (Diners), or a plain run; OCR may mix spaces.
@@ -24,7 +24,7 @@ object CardText {
             if (number != null) break
         }
         val expiry = latestExpiry(text)
-        return ScannedCard(number, expiry)
+        return ScannedCard(number, expiry, app.duely.domain.Issuers.detect(text))
     }
 
     /** Cards show "valid from" and "valid thru"; the later date is the expiry. Returns "MM/YY". */

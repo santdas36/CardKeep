@@ -71,6 +71,66 @@ object Issuers {
 
     fun byName(name: String) = all.firstOrNull { it.name == name } ?: all.last()
 
+    /**
+     * Which bank a piece of card text names: what the camera read off the card, or the label on its chip.
+     * The longest name found wins, so "State Bank of India" beats "Bank of India" and "South Indian Bank"
+     * beats "Indian Bank". Whole words only, so OCR noise doesn't match short names by accident.
+     */
+    fun detect(text: String?): String? {
+        if (text.isNullOrBlank()) return null
+        val t = " " + text.uppercase().replace(Regex("[^A-Z0-9&]+"), " ") + " "
+        return ALIASES.flatMap { (bank, names) -> names.map { it to bank } }
+            .filter { (alias, _) -> t.contains(" $alias ") }
+            .maxByOrNull { it.first.length }?.second
+    }
+
+    private val ALIASES: Map<String, List<String>> = mapOf(
+        "HDFC Bank" to listOf("HDFC", "HDFC BANK"),
+        "SBI Card" to listOf("SBI CARD", "SBICARD"),
+        "State Bank of India" to listOf("STATE BANK OF INDIA", "STATE BANK", "SBI"),
+        "ICICI Bank" to listOf("ICICI", "ICICI BANK"),
+        "Axis Bank" to listOf("AXIS BANK", "AXIS"),
+        "Kotak" to listOf("KOTAK", "KOTAK MAHINDRA"),
+        "Yes Bank" to listOf("YES BANK"),
+        "IDFC FIRST" to listOf("IDFC", "IDFC FIRST"),
+        "IndusInd" to listOf("INDUSIND", "INDUSIND BANK"),
+        "AU Bank" to listOf("AU BANK", "AU SMALL FINANCE"),
+        "RBL Bank" to listOf("RBL", "RBL BANK"),
+        "Amex" to listOf("AMERICAN EXPRESS", "AMEX"),
+        "HSBC" to listOf("HSBC"),
+        "Standard Chartered" to listOf("STANDARD CHARTERED"),
+        "Federal Bank" to listOf("FEDERAL BANK", "SCAPIA"),
+        "BOB Card" to listOf("BOBCARD", "BOB CARD", "BOB FINANCIAL"),
+        "Bank of Baroda" to listOf("BANK OF BARODA"),
+        "OneCard" to listOf("ONECARD", "ONE CARD"),
+        "Slice" to listOf("SLICE"),
+        "Unity Bank (Roar)" to listOf("ROARBANK", "UNITY SMALL FINANCE"),
+        "Punjab National Bank" to listOf("PUNJAB NATIONAL BANK", "PNB"),
+        "Canara Bank" to listOf("CANARA BANK", "CANARA"),
+        "Union Bank of India" to listOf("UNION BANK OF INDIA", "UNION BANK"),
+        "Bank of India" to listOf("BANK OF INDIA"),
+        "Indian Bank" to listOf("INDIAN BANK"),
+        "Central Bank of India" to listOf("CENTRAL BANK OF INDIA"),
+        "Indian Overseas Bank" to listOf("INDIAN OVERSEAS BANK", "IOB"),
+        "Bank of Maharashtra" to listOf("BANK OF MAHARASHTRA"),
+        "UCO Bank" to listOf("UCO BANK"),
+        "IDBI Bank" to listOf("IDBI", "IDBI BANK"),
+        "Citi" to listOf("CITI", "CITIBANK"),
+        "DBS Bank" to listOf("DBS", "DBS BANK"),
+        "DCB Bank" to listOf("DCB BANK"),
+        "Barclays" to listOf("BARCLAYS"),
+        "Deutsche Bank" to listOf("DEUTSCHE BANK"),
+        "CSB Bank" to listOf("CSB BANK"),
+        "City Union Bank" to listOf("CITY UNION BANK"),
+        "Dhanlaxmi Bank" to listOf("DHANLAXMI BANK", "DHANLAXMI"),
+        "J&K Bank" to listOf("J&K BANK", "JK BANK", "JAMMU KASHMIR BANK"),
+        "Karnataka Bank" to listOf("KARNATAKA BANK"),
+        "Karur Vysya Bank" to listOf("KARUR VYSYA BANK", "KARUR VYSYA", "KVB"),
+        "South Indian Bank" to listOf("SOUTH INDIAN BANK"),
+        "Saraswat Bank" to listOf("SARASWAT BANK", "SARASWAT"),
+        "Abhyudaya Bank" to listOf("ABHYUDAYA BANK", "ABHYUDAYA"),
+    ).filterKeys { name -> all.any { it.name == name } }
+
     /** Monogram for the bank badge. */
     fun short(name: String): String = when (name) {
         "HDFC Bank" -> "HDFC"; "SBI Card" -> "SBI"; "ICICI Bank" -> "ICICI"; "Axis Bank" -> "AXIS"

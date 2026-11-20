@@ -120,7 +120,8 @@ fun EditScreen(
     var pinned by rememberSaveable { mutableStateOf(false) }
 
     var nickname by rememberSaveable { mutableStateOf("") }
-    var issuer by rememberSaveable { mutableStateOf(Issuers.all.first().name) }
+    // New cards start unassigned ("Other") until the card, its BIN or you say which bank it is.
+    var issuer by rememberSaveable { mutableStateOf(Issuers.all.last().name) }
     var network by rememberSaveable { mutableStateOf("Visa") }
     var last4 by rememberSaveable { mutableStateOf("") }
     var limit by rememberSaveable { mutableStateOf("") }
@@ -146,6 +147,9 @@ fun EditScreen(
 
     var networkManual by rememberSaveable { mutableStateOf(false) }
     var issuerManual by rememberSaveable { mutableStateOf(false) }
+    // The bank name was read off the card itself (camera text or chip label): more reliable than the BIN table.
+    var issuerFromCard by rememberSaveable { mutableStateOf(false) }
+    var cardIssuer by remember { mutableStateOf<String?>(null) } // just read by Scan / Tap, applied below
     var kindManual by rememberSaveable { mutableStateOf(false) }
     var dueOffsetManual by rememberSaveable { mutableStateOf(false) }
 
@@ -191,6 +195,7 @@ fun EditScreen(
             (c.network ?: CardNumbers.detectNetwork(c.number))?.let { if (!networkManual) network = it }
             c.expiry?.let { expiry = it }
             c.holder?.let { holder = it.uppercase() }
+            c.issuer?.let { cardIssuer = it }
             errors = errors - "number" - "last4" - "expiry"
         },
         onDismiss = { tapping = false },
@@ -205,6 +210,7 @@ fun EditScreen(
                 CardNumbers.detectNetwork(n)?.let { if (!networkManual) network = it }
             }
             s.expiry?.let { expiry = it }
+            s.issuer?.let { cardIssuer = it }
             errors = errors - "number" - "last4" - "expiry"
         },
         onDismiss = { scanning = false },
@@ -254,6 +260,12 @@ fun EditScreen(
         }
     }
 
+    LaunchedEffect(cardIssuer) {
+        val name = cardIssuer ?: return@LaunchedEffect
+        if (!issuerManual) { changeIssuer(name); issuerFromCard = true }
+        cardIssuer = null
+    }
+
     val digits = number.filter(Char::isDigit)
     // New cards: the first six digits pre-fill bank and type from the bundled offline BIN table,
     // unless you've already picked them yourself.
@@ -262,7 +274,7 @@ fun EditScreen(
         if (!isNew || digits.length < 6) return@LaunchedEffect
         val info = withContext(Dispatchers.IO) { BinLookup.find(appContext, digits) } ?: return@LaunchedEffect
         info.issuer?.let { name -> Issuers.all.firstOrNull { it.name == name } }?.let { iss ->
-            if (!issuerManual) changeIssuer(iss.name)
+            if (!issuerManual && !issuerFromCard) changeIssuer(iss.name)
         }
         info.kind?.let { if (!kindManual) kind = it }
     }

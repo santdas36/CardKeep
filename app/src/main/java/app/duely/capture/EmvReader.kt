@@ -5,7 +5,7 @@ import java.security.SecureRandom
 import java.time.LocalDate
 
 /** What a contactless read gives us. The CVV is never on the chip, so it's never here. */
-data class ChipCard(val number: String, val expiry: String?, val holder: String?, val network: String?)
+data class ChipCard(val number: String, val expiry: String?, val holder: String?, val network: String?, val issuer: String? = null)
 
 /**
  * Minimal EMV contactless reader: PPSE → SELECT AID → GET PROCESSING OPTIONS → READ RECORD,
@@ -42,6 +42,8 @@ object EmvReader {
         if (!ok(select)) return null
         val fci = body(select)
         val pdol = Tlv.find(fci, 0x9F38)
+        // Some banks put their name in the app's preferred name (9F12) or label (50), e.g. "HDFC BANK".
+        val label = listOf(0x9F12, 0x50).mapNotNull { t -> Tlv.find(fci, t)?.let { String(it, Charsets.ISO_8859_1) } }.joinToString(" ")
         val gpo = tag.transceive(apdu(0x80, 0xA8, 0x00, 0x00, gpoData(pdol)))
         val fields = mutableMapOf<Int, ByteArray>()
         if (ok(gpo)) {
@@ -50,7 +52,7 @@ object EmvReader {
             afl(g)?.let { readAfl(tag, it, fields) }
         }
         if (fields[0x5A] == null && fields[0x57] == null) bruteRead(tag, fields)
-        return toCard(fields, aid)
+        return toCard(fields, aid)?.copy(issuer = app.duely.domain.Issuers.detect(label))
     }
 
     // ---- Commands ----

@@ -129,6 +129,7 @@ private fun CameraReader(onResult: (ScannedCard) -> Unit) {
         val main = ContextCompat.getMainExecutor(context)
         var lastNumber: String? = null
         var expiry: String? = null
+        var issuer: String? = null // bank name read off the card, if any frame showed it
         var done = false
         var providerRef: ProcessCameraProvider? = null
         var disposed = false // closed before the camera provider was ready: don't bind
@@ -142,9 +143,10 @@ private fun CameraReader(onResult: (ScannedCard) -> Unit) {
                     if (done) return@addOnSuccessListener
                     val seen = CardText.parse(text.text)
                     if (seen.expiry != null) expiry = seen.expiry
+                    if (seen.issuer != null) issuer = seen.issuer
                     val n = seen.number
                     when {
-                        n != null && n == lastNumber -> { done = true; onResult(ScannedCard(n, expiry)) }
+                        n != null && n == lastNumber -> { done = true; onResult(ScannedCard(n, expiry, issuer)) }
                         n != null -> { lastNumber = n; hint = "Hold still…" }
                         else -> hint = "Fit the card inside the frame"
                     }

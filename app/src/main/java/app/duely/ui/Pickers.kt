@@ -184,6 +184,10 @@ fun bankLogo(issuer: String): Int? = when (issuer) {
     "HSBC" -> app.duely.R.drawable.sym_hsbc
     "Standard Chartered" -> app.duely.R.drawable.sym_sc
     "BOB Card" -> app.duely.R.drawable.sym_bob
+    "State Bank of India" -> app.duely.R.drawable.sym_sbi
+    "Yes Bank" -> app.duely.R.drawable.sym_yes
+    "Indian Bank" -> app.duely.R.drawable.sym_indianbank
+    "Union Bank of India" -> app.duely.R.drawable.sym_union
     else -> null // wordmark-only brands (Yes, IndusInd, Federal, Slice, Kotak, ...) use a monogram
 }
 
