@@ -1,6 +1,5 @@
 package app.duely.ui
 
-import android.os.Build
 import androidx.compose.foundation.layout.Box
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.mutableIntStateOf
@@ -11,17 +10,15 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.drawWithCache
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
-import androidx.compose.ui.graphics.BlurEffect
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.StrokeCap
-import androidx.compose.ui.graphics.TileMode
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.drawscope.rotate
 import androidx.compose.ui.graphics.ImageBitmap
-import androidx.compose.ui.graphics.layer.drawLayer
+import androidx.compose.ui.graphics.asAndroidBitmap
 import app.duely.data.Card
 
 /**
@@ -208,14 +205,13 @@ fun CardSurface(card: Card, modifier: Modifier = Modifier) {
 }
 
 /**
- * One art. Blurred (Android 12+), it's rendered with the blur once per art and size into a bitmap that
- * every card showing it reuses, so scrolling and spreading the stack only draws an image: no per-frame
- * blur. Until that bitmap is ready (a frame or two) the blurred layer is drawn live.
- * Unblurred (thumbnails, older phones) it's drawn directly; that's just a few gradients and paths.
+ * One art. Blurred, it's rendered once per art and size into a small bitmap, softened with a box blur on
+ * a background thread and scaled up when drawn; every card showing it reuses that bitmap, so scrolling
+ * and spreading the stack only draws an image. Until it's ready the art is drawn unblurred, so a card is
+ * never blank. Same result on every Android version. Unblurred (thumbnails) it's drawn directly.
  */
 @Composable
 fun ArtSurface(art: CardArt, modifier: Modifier = Modifier, blur: Boolean = true) {
-    val blurred = blur && Build.VERSION.SDK_INT >= 31
     val scope = rememberCoroutineScope()
     val version = remember { mutableIntStateOf(0) }
     Box(
@@ -223,27 +219,76 @@ fun ArtSurface(art: CardArt, modifier: Modifier = Modifier, blur: Boolean = true
             val w = size.width.toInt()
             val h = size.height.toInt()
             val bg = artBackground(art, size.width, size.height)
-            if (!blurred || w <= 0 || h <= 0) {
-                return@drawWithCache onDrawBehind { drawRect(bg); drawMotif(art, size.width, size.height) }
-            }
+            val plain = onDrawBehind { drawRect(bg); drawMotif(art, size.width, size.height) }
+            if (!blur || w <= 0 || h <= 0) return@drawWithCache plain
             version.intValue // re-run when the bitmap lands
             val key = "${art.id}@${w}x$h"
-            ArtBitmaps.get(key)?.let { bmp -> return@drawWithCache onDrawBehind { drawImage(bmp) } }
-
-            val layer = obtainGraphicsLayer()
-            layer.record { drawRect(bg); drawMotif(art, size.width, size.height) }
-            val r = size.width * BLUR
-            layer.renderEffect = BlurEffect(r, r, TileMode.Clamp)
-            scope.launch {
-                runCatching { layer.toImageBitmap() }.onSuccess { bmp ->
-                    ArtBitmaps.put(key, bmp)
+            val bmp = ArtBitmaps.get(key)
+            if (bmp == null) {
+                scope.launch(kotlinx.coroutines.Dispatchers.Default) {
+                    val made = runCatching { renderBlurred(art, w, h) }.getOrNull() ?: return@launch
+                    ArtBitmaps.put(key, made)
                     version.intValue++
                 }
+                return@drawWithCache plain
             }
-            onDrawBehind { drawLayer(layer) }
+            onDrawBehind {
+                drawImage(bmp, dstSize = androidx.compose.ui.unit.IntSize(w, h), filterQuality = androidx.compose.ui.graphics.FilterQuality.Low)
+            }
         },
     )
 }
+
+/** Draws [art] at 1/[DOWN] size, box-blurs it (three passes, close to a Gaussian) and returns the bitmap. */
+private fun renderBlurred(art: CardArt, w: Int, h: Int): ImageBitmap {
+    val sw = (w + DOWN - 1) / DOWN
+    val sh = (h + DOWN - 1) / DOWN
+    val img = ImageBitmap(sw, sh)
+    androidx.compose.ui.graphics.drawscope.CanvasDrawScope().draw(
+        androidx.compose.ui.unit.Density(1f), androidx.compose.ui.unit.LayoutDirection.Ltr,
+        androidx.compose.ui.graphics.Canvas(img), Size(sw.toFloat(), sh.toFloat()),
+    ) {
+        drawRect(artBackground(art, sw.toFloat(), sh.toFloat()))
+        drawMotif(art, sw.toFloat(), sh.toFloat())
+    }
+    val r = (w * BLUR / DOWN).roundToIntSafe().coerceIn(1, 12)
+    val bitmap = img.asAndroidBitmap()
+    val px = IntArray(sw * sh)
+    bitmap.getPixels(px, 0, sw, 0, 0, sw, sh)
+    val tmp = IntArray(px.size)
+    repeat(3) { boxBlur(px, tmp, sw, sh, r, horizontal = true); boxBlur(tmp, px, sw, sh, r, horizontal = false) }
+    bitmap.setPixels(px, 0, sw, 0, 0, sw, sh)
+    return img
+}
+
+private fun Float.roundToIntSafe() = kotlin.math.round(this).toInt()
+
+/** One box-blur pass along rows or columns (edges clamped), ARGB channels separately. */
+private fun boxBlur(src: IntArray, dst: IntArray, w: Int, h: Int, r: Int, horizontal: Boolean) {
+    val len = if (horizontal) w else h
+    val lines = if (horizontal) h else w
+    val div = 2 * r + 1
+    for (line in 0 until lines) {
+        fun at(i: Int): Int {
+            val c = i.coerceIn(0, len - 1)
+            return if (horizontal) src[line * w + c] else src[c * w + line]
+        }
+        var sa = 0; var sr = 0; var sg = 0; var sb = 0
+        for (i in -r..r) { val p = at(i); sa += p ushr 24; sr += (p shr 16) and 0xFF; sg += (p shr 8) and 0xFF; sb += p and 0xFF }
+        for (i in 0 until len) {
+            val out = ((sa / div) shl 24) or ((sr / div) shl 16) or ((sg / div) shl 8) or (sb / div)
+            if (horizontal) dst[line * w + i] = out else dst[i * w + line] = out
+            val add = at(i + r + 1); val rem = at(i - r)
+            sa += (add ushr 24) - (rem ushr 24)
+            sr += ((add shr 16) and 0xFF) - ((rem shr 16) and 0xFF)
+            sg += ((add shr 8) and 0xFF) - ((rem shr 8) and 0xFF)
+            sb += (add and 0xFF) - (rem and 0xFF)
+        }
+    }
+}
+
+/** Arts are rendered at this fraction of their size before blurring: the upscale adds softness for free. */
+private const val DOWN = 3
 
 /** Rendered (blurred) arts by id and pixel size, shared by every card. Bounded by bytes. */
 private object ArtBitmaps : android.util.LruCache<String, ImageBitmap>(24 * 1024 * 1024) {
