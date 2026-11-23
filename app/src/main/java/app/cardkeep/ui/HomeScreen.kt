@@ -640,10 +640,9 @@ private fun WalletStack(
                     // Cards further back sit in the front card's shade; it fades out as the stack spreads.
                     val shade = animateFloatAsState(depth.coerceAtMost(3) * 0.07f, settle, label = "shade")
                     val isRaised = raised == cw.card.id
-                    CardFace(
-                        cw,
-                        ownShadow = false,
-                        modifier = Modifier
+                    // Coming back from a revealed detail card: this copy finishes the flip as it lands.
+                    val landing = FlipBack.pending?.takeIf { it.cardId == cw.card.id }
+                    val cardModifier = Modifier
                             .zIndex(if (cw.card.id == leaving) k + 1f else index.toFloat())
                             .offset {
                                 val live = if (isFront) st.pull else pulled(st.pull) * stripPx
@@ -681,8 +680,9 @@ private fun WalletStack(
                                     haptics.performHapticFeedback(HapticFeedbackType.LongPress)
                                     onLongPress(cw)
                                 },
-                            ),
-                    )
+                            )
+                    if (landing != null) LandingFlip(cw, landing, cardModifier)
+                    else CardFace(cw, ownShadow = false, modifier = cardModifier)
                 }
             }
             // Extra cards: tucked under the front card until "+ N more", then laid out below the stack's cards.

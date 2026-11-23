@@ -1,5 +1,6 @@
 package app.cardkeep.ui
 
+import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
@@ -21,6 +22,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -50,6 +52,9 @@ data class StoredFields(val number: Boolean, val expiry: Boolean, val cvv: Boole
  * The card face that turns over to show the decrypted details while [revealed] is set.
  * [progress] (1 → 0) draws the auto-hide countdown along the bottom edge of the back.
  */
+/** How long the card takes to turn over. */
+const val FLIP_MS = 600
+
 @Composable
 fun FlipCard(
     cw: CardWithDue,
@@ -63,7 +68,7 @@ fun FlipCard(
     var shown by remember { mutableStateOf<SecretDraft?>(null) }
     if (revealed != null) shown = revealed
     val angle by animateFloatAsState(
-        if (revealed != null) 180f else 0f, tween(600, easing = FastOutSlowInEasing), label = "flip",
+        if (revealed != null) 180f else 0f, tween(FLIP_MS, easing = FastOutSlowInEasing), label = "flip",
     )
     Box(
         modifier.fillMaxWidth().graphicsLayer {
@@ -73,6 +78,44 @@ fun FlipCard(
     ) {
         if (angle <= 90f) CardFace(cw)
         else Box(Modifier.graphicsLayer { rotationY = 180f }) { CardBack(cw, shown, stored, progress, onCopy) }
+    }
+}
+
+/**
+ * A card leaving the detail screen face down. During the shared-element move only the home stack's copy
+ * of the card is drawn, so the home card finishes turning it over as it lands ([LandingFlip]). The
+ * details it shows on the way are dropped within a couple of seconds whether or not anything used them.
+ */
+object FlipBack {
+    class Pending(val cardId: Long, val shown: SecretDraft, val stored: StoredFields)
+
+    var pending by mutableStateOf<Pending?>(null)
+        private set
+
+    fun start(p: Pending) {
+        pending = p
+        android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({ if (pending === p) pending = null }, 2000)
+    }
+
+    fun done(p: Pending) { if (pending === p) pending = null }
+}
+
+/** The home card for [p]: starts face down and turns face up, in step with the move back into the stack. */
+@Composable
+fun LandingFlip(cw: CardWithDue, p: FlipBack.Pending, modifier: Modifier = Modifier) {
+    val angle = remember(p) { Animatable(180f) }
+    LaunchedEffect(p) {
+        angle.animateTo(0f, tween(FLIP_MS, easing = FastOutSlowInEasing))
+        FlipBack.done(p)
+    }
+    Box(
+        modifier.graphicsLayer {
+            rotationY = angle.value
+            cameraDistance = 16f * density
+        },
+    ) {
+        if (angle.value <= 90f) CardFace(cw, ownShadow = false)
+        else Box(Modifier.graphicsLayer { rotationY = 180f }) { CardBack(cw, p.shown, p.stored, 0f) { _, _ -> } }
     }
 }
 

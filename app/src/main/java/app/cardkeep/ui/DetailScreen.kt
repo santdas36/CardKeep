@@ -106,6 +106,7 @@ import app.cardkeep.domain.Money
 import app.cardkeep.security.Auth
 import app.cardkeep.security.SecretDraft
 import app.cardkeep.security.Vault
+import androidx.activity.compose.BackHandler
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -179,6 +180,16 @@ fun DetailScreen(
     }
 
     fun reveal() = scope.launch { unlock("Reveal card details")?.let { revealed = it } }
+    // Leaving with the card revealed: go back at once and let the home card turn it face up as it lands,
+    // so the flip and the move happen together (only the home copy is drawn during the move).
+    fun back() {
+        revealed?.let { r ->
+            FlipBack.start(FlipBack.Pending(c.id, r, StoredFields(s?.numberEnc != null, s?.expiryEnc != null, s?.cvvEnc != null, s?.holderEnc != null)))
+        }
+        revealed = null
+        onBack()
+    }
+    BackHandler(enabled = revealed != null) { back() }
     val archived = c.archivedAt != null
 
     Scaffold(
@@ -186,7 +197,7 @@ fun DetailScreen(
             TopAppBar(
                 colors = TopAppBarDefaults.topAppBarColors(containerColor = MaterialTheme.colorScheme.background),
                 title = {},
-                navigationIcon = { IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, "Back") } },
+                navigationIcon = { IconButton(onClick = { back() }) { Icon(Icons.AutoMirrored.Filled.ArrowBack, "Back") } },
                 actions = {
                     IconButton(onClick = onEdit) { Icon(Icons.Outlined.Edit, "Edit card") }
                     IconButton(onClick = { menu = true }) { Icon(Icons.Filled.MoreVert, "More") }
