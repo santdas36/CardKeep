@@ -2,7 +2,7 @@
 
 # CardKeep
 
-[![Release](https://img.shields.io/badge/release-v0.2.0-blue)](https://github.com/santdas36/CardKeep/releases)
+[![Release](https://img.shields.io/github/v/release/santdas36/CardKeep)](https://github.com/santdas36/CardKeep/releases)
 [![Android 8.0+](https://img.shields.io/badge/Android-8.0%2B-3DDC84)](#)
 [![License](https://img.shields.io/badge/license-GPL--3.0-lightgrey)](LICENSE)
 
