@@ -141,6 +141,9 @@ object Backup {
                     .putOpt("statementId", l.statementId).put("at", l.at)
             }))
             .put("senderCards", JSONArray(d.senderCards().map { JSONObject().put("sender", it.sender).put("cardId", it.cardId) }))
+            .put("holderNames", JSONArray(db.dao().holderNames().map {
+                JSONObject().put("name", it.name).put("lastUsed", it.lastUsed).put("uses", it.uses)
+            }))
             .put("prefs", JSONObject()
                 .put("lockTimeoutSec", prefs.lockTimeoutSec).put("defaultLeads", prefs.defaultLeads)
                 .put("palette", prefs.palette).put("themeMode", prefs.themeMode))
@@ -231,6 +234,15 @@ object Backup {
                 )
             }.filter { it.outcome !in PENDING_PDF_OUTCOMES })
             d.putSenderCards(map("senderCards") { SenderCard(it.getString("sender"), it.getLong("cardId")) })
+
+            // Saved names. Older backups have none: take them from the cards' own holder names instead.
+            val names = if (j.has("holderNames")) map("holderNames") { n ->
+                HolderName(HolderName.normalise(n.getString("name")), n.optLong("lastUsed"), n.optInt("uses"))
+            } else map("cards") { c -> c.optJSONObject("secret")?.optString("holder").orEmpty() }
+                .map { HolderName.normalise(it) }.filter { it.isNotEmpty() }
+                .groupingBy { it }.eachCount().map { (n, uses) -> HolderName(n, System.currentTimeMillis(), uses) }
+            db.dao().clearHolderNames()
+            db.dao().putHolderNames(names.filter { it.name.isNotEmpty() }.distinctBy { it.name })
 
             // Email: keep this phone's saved app password if the account is the same; otherwise it must be re-entered.
             val old = d.mailSource()

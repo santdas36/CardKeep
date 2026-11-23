@@ -208,6 +208,23 @@ class PendingPdf(
     val fileName: String,
     val bytes: ByteArray,
 )
+/**
+ * A cardholder name you've used, offered as a suggestion when adding cards. Kept in the (SQLCipher-encrypted)
+ * database rather than the vault, so suggesting one never needs a fingerprint.
+ */
+@Entity(tableName = "holder_names")
+data class HolderName(
+    /** Uppercase, trimmed, single-spaced: see [normalise]. */
+    @PrimaryKey val name: String,
+    val lastUsed: Long,
+    /** Cards saved with this name; 0 for one only added from the picker. */
+    val uses: Int,
+) {
+    companion object {
+        fun normalise(name: String) = name.trim().replace(Regex("\\s+"), " ").uppercase()
+    }
+}
+
 /** "Statements from this sender go to this card", learned when you pick a card for an unmatched email. */
 @Entity(
     tableName = "sender_cards",
@@ -217,4 +234,4 @@ class PendingPdf(
 data class SenderCard(
     @PrimaryKey val sender: String,
     val cardId: Long,
-)
+)

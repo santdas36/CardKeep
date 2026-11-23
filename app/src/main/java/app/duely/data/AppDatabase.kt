@@ -13,8 +13,9 @@ import net.zetetic.database.sqlcipher.SupportOpenHelperFactory
     entities = [
         Card::class, CardSecret::class, Payment::class,
         Statement::class, Txn::class, Category::class, CategoryRule::class, MailSource::class, ImportLog::class, PendingPdf::class, SenderCard::class,
+        HolderName::class,
     ],
-    version = 9,
+    version = 10,
     exportSchema = true,
     autoMigrations = [AutoMigration(from = 1, to = 2), AutoMigration(from = 2, to = 3), AutoMigration(from = 3, to = 4)],
 )
@@ -29,7 +30,7 @@ abstract class AppDatabase : RoomDatabase() {
             System.loadLibrary("sqlcipher")
             return Room.databaseBuilder(context, AppDatabase::class.java, "duely.db")
                 .openHelperFactory(SupportOpenHelperFactory(passphrase))
-                .addMigrations(Repair(4), Repair(5), V6to7, V7to8, V8to9)
+                .addMigrations(Repair(4), Repair(5), V6to7, V7to8, V8to9, V9to10)
                 .build()
         }
     }
@@ -52,6 +53,15 @@ abstract class AppDatabase : RoomDatabase() {
     private object V8to9 : Migration(8, 9) {
         override fun migrate(db: SupportSQLiteDatabase) {
             db.execSQL("ALTER TABLE `cards` ADD COLUMN `billingSet` INTEGER NOT NULL DEFAULT 1")
+        }
+    }
+
+    /** Saved cardholder names for suggestions. Starts empty: names stay in the vault until a card is saved again. */
+    private object V9to10 : Migration(9, 10) {
+        override fun migrate(db: SupportSQLiteDatabase) {
+            db.execSQL(
+                "CREATE TABLE IF NOT EXISTS `holder_names` (`name` TEXT NOT NULL, `lastUsed` INTEGER NOT NULL, `uses` INTEGER NOT NULL, PRIMARY KEY(`name`))",
+            )
         }
     }
 

@@ -319,6 +319,11 @@ class MainActivity : FragmentActivity() {
                                 deviceSecure = deviceSecure,
                                 onDone = { nav.popBackStack() },
                                 startWith = entry.arguments?.getString("start"),
+                                // Duplicate found: leave the form and show the card already saved.
+                                onOpenCard = { id ->
+                                    nav.popBackStack()
+                                    nav.navigate("card/$id") { launchSingleTop = true }
+                                },
                             )
                         }
                         composable("passwords") { PasswordsScreen(ledger, onBack = { nav.popBackStack() }) }

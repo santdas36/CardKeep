@@ -1,6 +1,5 @@
 package app.duely.ui
 
-import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -24,17 +23,15 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Check
-import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.KeyboardArrowDown
+import androidx.compose.material.icons.filled.KeyboardArrowUp
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -45,11 +42,9 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.semantics.Role
-import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.text.font.FontWeight
@@ -85,18 +80,8 @@ fun DesignSheet(issuer: String, nickname: String, selected: String?, onSelect: (
     val showOthers = othersOpen || q.isNotEmpty()
 
     ModalBottomSheet(onDismissRequest = onDismiss, sheetState = state) {
-        Row(Modifier.fillMaxWidth().padding(start = 20.dp, end = 8.dp), verticalAlignment = Alignment.CenterVertically) {
-            Text("Card design", style = MaterialTheme.typography.titleLarge, modifier = Modifier.weight(1f).semantics { heading() })
-            TextButton(onClick = ::done) { Text("Done") }
-        }
-        OutlinedTextField(
-            value = query, onValueChange = { query = it },
-            placeholder = { Text("Search designs or banks") },
-            leadingIcon = { Icon(Icons.Filled.Search, null) },
-            trailingIcon = { if (query.isNotEmpty()) IconButton(onClick = { query = "" }) { Icon(Icons.Filled.Close, "Clear search") } },
-            singleLine = true, shape = RoundedCornerShape(50),
-            modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 8.dp),
-        )
+        SheetTitle("Card design", "Done", ::done)
+        SheetSearchField(query, { query = it }, "Search designs or banks")
         LazyVerticalGrid(
             columns = GridCells.Fixed(2),
             contentPadding = PaddingValues(start = 20.dp, end = 20.dp, bottom = 32.dp),
@@ -119,17 +104,18 @@ fun DesignSheet(issuer: String, nickname: String, selected: String?, onSelect: (
             }
             if (others.isNotEmpty()) {
                 item("others", span = { GridItemSpan(maxLineSpan) }) {
-                    val turn by animateFloatAsState(if (showOthers) 180f else 0f, label = "others")
                     Row(
-                        Modifier.fillMaxWidth().padding(top = 12.dp).clip(MaterialTheme.shapes.small)
+                        Modifier.fillMaxWidth().padding(top = 8.dp).heightIn(min = 48.dp).clip(RoundedCornerShape(12.dp))
                             .clickable(enabled = q.isEmpty(), role = Role.Button, onClickLabel = if (showOthers) "Hide" else "Show") { othersOpen = !othersOpen }
-                            .semantics { stateDescription = if (showOthers) "Expanded" else "Collapsed" }
-                            .padding(horizontal = 4.dp, vertical = 10.dp),
+                            .semantics { stateDescription = if (showOthers) "Expanded" else "Collapsed" },
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
-                        Text("Other banks", style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.weight(1f))
-                        Text("${others.size}", style = MaterialTheme.typography.titleSmall.tabular, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                        if (q.isEmpty()) Icon(Icons.Filled.KeyboardArrowDown, null, tint = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(start = 4.dp).rotate(turn))
+                        SheetSectionLabel("Other banks", Modifier.weight(1f))
+                        Text("${others.size}", style = MaterialTheme.typography.labelLarge.tabular, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        if (q.isEmpty()) Icon(
+                            if (showOthers) Icons.Filled.KeyboardArrowUp else Icons.Filled.KeyboardArrowDown, null,
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(horizontal = 4.dp),
+                        )
                     }
                 }
                 if (showOthers) items(others, key = { it.id }) { a ->
@@ -154,7 +140,7 @@ fun DesignSheet(issuer: String, nickname: String, selected: String?, onSelect: (
 }
 
 private fun LazyGridScope.header(text: String) =
-    item("h_$text", span = { GridItemSpan(maxLineSpan) }) { SectionHeader(text) }
+    item("h_$text", span = { GridItemSpan(maxLineSpan) }) { SheetSectionLabel(text) }
 
 /** The art itself, or the bank-colour gradient when [art] is null. Fills its (clipped) parent. */
 @Composable

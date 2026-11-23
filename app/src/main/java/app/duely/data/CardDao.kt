@@ -47,4 +47,27 @@ interface CardDao {
 
     @Query("DELETE FROM payments WHERE id = :id")
     suspend fun deletePayment(id: Long)
+
+    // Saved cardholder names: most used first, then most recent.
+    @Query("SELECT * FROM holder_names ORDER BY uses DESC, lastUsed DESC")
+    fun observeHolderNames(): Flow<List<HolderName>>
+
+    @Query("SELECT * FROM holder_names ORDER BY uses DESC, lastUsed DESC")
+    suspend fun holderNames(): List<HolderName>
+
+    /** Adds [name] with no uses yet; an existing name is left as it is. */
+    @Query("INSERT OR IGNORE INTO holder_names (name, lastUsed, uses) VALUES (:name, :at, 0)")
+    suspend fun insertHolderName(name: String, at: Long)
+
+    @Query("UPDATE holder_names SET uses = uses + 1, lastUsed = :at WHERE name = :name")
+    suspend fun bumpHolderName(name: String, at: Long)
+
+    @Query("DELETE FROM holder_names WHERE name = :name")
+    suspend fun deleteHolderName(name: String)
+
+    @Query("DELETE FROM holder_names")
+    suspend fun clearHolderNames()
+
+    @Upsert
+    suspend fun putHolderNames(names: List<HolderName>)
 }

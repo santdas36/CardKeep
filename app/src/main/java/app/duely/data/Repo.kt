@@ -68,6 +68,28 @@ class Repo(private val dao: CardDao, private val ledgerDao: LedgerDao, private v
 
     suspend fun secret(id: Long): CardSecret? = dao.secret(id)
 
+    /** Saved cardholder names for suggestions, most used first. */
+    val holderNames: Flow<List<HolderName>> = dao.observeHolderNames()
+
+    /** A card was saved with [name]: add it if new, and count the use. */
+    suspend fun useHolderName(name: String) {
+        val n = HolderName.normalise(name).takeIf { it.isNotEmpty() } ?: return
+        val now = System.currentTimeMillis()
+        DuelyApp.from(context).db.withTransaction {
+            dao.insertHolderName(n, now)
+            dao.bumpHolderName(n, now)
+        }
+    }
+
+    /** Adds a name from the picker (no uses yet). Returns the stored form. */
+    suspend fun addHolderName(name: String): String? {
+        val n = HolderName.normalise(name).takeIf { it.isNotEmpty() } ?: return null
+        dao.insertHolderName(n, System.currentTimeMillis())
+        return n
+    }
+
+    suspend fun removeHolderName(name: String) = dao.deleteHolderName(name)
+
     /** Inserts or updates [card]; non-null fields of [secrets] replace the stored ones. */
     suspend fun save(card: Card, secrets: EncryptedDraft?): Long {
         // The edit form doesn't know about archiving; keep whatever state the stored row has.

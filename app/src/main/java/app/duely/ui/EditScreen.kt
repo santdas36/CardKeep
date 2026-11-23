@@ -1,8 +1,14 @@
 package app.duely.ui
 
 import androidx.activity.compose.BackHandler
-import androidx.compose.animation.AnimatedVisibility
+import kotlin.math.roundToInt
+import androidx.compose.ui.layout.layout
+import androidx.compose.ui.draw.clipToBounds
+import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.tween
 import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -10,14 +16,13 @@ import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.requiredSize
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
@@ -26,16 +31,19 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.Notes
-import androidx.compose.material.icons.filled.ArrowDropDown
+import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.KeyboardArrowDown
+import androidx.compose.material.icons.filled.KeyboardArrowUp
 import androidx.compose.material.icons.outlined.AccountBalanceWallet
 import androidx.compose.material.icons.outlined.Contactless
+import androidx.compose.material.icons.outlined.Contacts
 import androidx.compose.material.icons.outlined.Event
+import androidx.compose.material.icons.outlined.History
 import androidx.compose.material.icons.outlined.NotificationsNone
 import androidx.compose.material.icons.outlined.PhotoCamera
 import androidx.compose.material.icons.outlined.Tune
-import androidx.compose.material3.AssistChip
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.DatePicker
 import androidx.compose.material3.DatePickerDialog
@@ -44,11 +52,19 @@ import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.FilterChip
+import androidx.compose.material3.FilterChipDefaults
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.LocalTextStyle
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SegmentedButton
+import androidx.compose.material3.SegmentedButtonDefaults
+import androidx.compose.material3.SingleChoiceSegmentedButtonRow
+import androidx.compose.material3.SuggestionChip
+import androidx.compose.material3.SuggestionChipDefaults
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -56,6 +72,7 @@ import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.rememberDatePickerState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -65,9 +82,10 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.rotate
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.AnnotatedString
@@ -81,6 +99,7 @@ import androidx.compose.ui.unit.dp
 import androidx.fragment.app.FragmentActivity
 import app.duely.data.Card
 import app.duely.data.CardKind
+import app.duely.data.CardSecret
 import app.duely.data.Repo
 import app.duely.domain.Billing
 import app.duely.domain.BinLookup
@@ -89,10 +108,12 @@ import app.duely.domain.Dates
 import app.duely.domain.Issuers
 import app.duely.domain.Money
 import app.duely.security.Auth
+import app.duely.security.EncryptedDraft
 import app.duely.security.SecretDraft
 import app.duely.security.Vault
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.time.Instant
@@ -109,6 +130,8 @@ fun EditScreen(
     cardId: Long, repo: Repo, defaultLeads: String, deviceSecure: Boolean, onDone: () -> Unit,
     /** "scan" or "tap": open the camera or the NFC sheet straight away (from an app shortcut). */
     startWith: String? = null,
+    /** Opens a saved card (the duplicate found on save) instead of adding this one. */
+    onOpenCard: (Long) -> Unit = {},
 ) {
     val activity = LocalContext.current as FragmentActivity
     val scope = rememberCoroutineScope()
@@ -158,7 +181,12 @@ fun EditScreen(
     var openLimit by rememberSaveable { mutableStateOf(false) }
     var openNotes by rememberSaveable { mutableStateOf(false) }
     var showDesign by rememberSaveable { mutableStateOf(false) }
+    var showBank by rememberSaveable { mutableStateOf(false) }
+    var netOpen by remember { mutableStateOf(false) }
     var pickingDue by remember { mutableStateOf(false) }
+    var showNames by rememberSaveable { mutableStateOf(false) }
+    // Saved cardholder names (a plain table, not the vault): suggestions without a fingerprint.
+    val holderNames by remember { repo.holderNames.map { list -> list.map { it.name } } }.collectAsState(initial = emptyList())
 
     // Field errors show under their field; [error] is only for what no field owns (vault, screen lock).
     var errors by remember { mutableStateOf(mapOf<String, String>()) }
@@ -285,6 +313,17 @@ fun EditScreen(
         else -> null
     }
 
+    // A save held back because the card looks already saved: the card and its already-encrypted secrets
+    // (ciphertext only; the numbers compared stay in local vals inside [findDuplicate]).
+    var duplicate by remember { mutableStateOf<PendingSave?>(null) }
+
+    suspend fun commit(card: Card, enc: EncryptedDraft?) {
+        repo.save(card, enc)
+        // Remember the name for next time (only a name typed now; a stored one is never decrypted here).
+        if (holder.isNotBlank()) repo.useHolderName(holder)
+        onDone()
+    }
+
     fun save() {
         error = null
         val l4 = if (digits.length >= 12) digits.takeLast(4) else last4.trim()
@@ -343,6 +382,8 @@ fun EditScreen(
             billingSet = billingSet,
         )
         val draft = SecretDraft(digits, expiry.trim(), cvv.trim(), holder.trim())
+        // The form's network counts for a duplicate check only when it came from the number or from you, not the default.
+        val networkKnown = !isNew || networkManual || CardNumbers.detectNetwork(digits) != null
 
         scope.launch {
             saving = true
@@ -356,8 +397,16 @@ fun EditScreen(
                     Auth.withVault(activity, "Save card details") { withContext(Dispatchers.IO) { Vault.encrypt(draft) } }
                         ?: return@launch
                 }
-                repo.save(card, enc)
-                onDone()
+                // New cards, and edits that change the number: is this card already saved? Runs right after the
+                // encrypt, so the vault's auth window is still open for comparing numbers (no second prompt).
+                if (isNew || digits.length >= 12) {
+                    val full = digits.takeIf { it.length >= 12 && enc?.number != null }
+                    findDuplicate(repo, card, full, networkKnown)?.let { dup ->
+                        duplicate = PendingSave(card, enc, dup)
+                        return@launch
+                    }
+                }
+                commit(card, enc)
             } catch (e: kotlinx.coroutines.CancellationException) {
                 throw e
             } catch (e: Exception) {
@@ -403,6 +452,48 @@ fun EditScreen(
         onDismiss = { pickingDue = false },
     )
 
+    duplicate?.takeIf { !locked }?.let { p ->
+        val d = p.match
+        AlertDialog(
+            onDismissRequest = { duplicate = null },
+            title = { Text("You already have this card") },
+            text = {
+                Text("${d.nickname} (${d.issuer} ending ${d.last4}) " + if (d.archivedAt != null) "is in Archived cards." else "is already saved.")
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    duplicate = null
+                    // Same card data and blobs as before: no second fingerprint prompt.
+                    scope.launch {
+                        saving = true
+                        try {
+                            commit(p.card, p.enc)
+                        } catch (e: kotlinx.coroutines.CancellationException) {
+                            throw e
+                        } catch (e: Exception) {
+                            error = "Couldn't save the card (${e.javaClass.simpleName})."
+                            scroll.animateScrollTo(0)
+                        } finally {
+                            saving = false
+                        }
+                    }
+                }) { Text("Add anyway") }
+            },
+            dismissButton = { TextButton(onClick = { duplicate = null; onOpenCard(d.id) }) { Text("Open existing") } },
+        )
+    }
+
+    if (showNames) NameSheet(
+        names = holderNames,
+        current = holder,
+        onPick = { holder = it },
+        onAdd = { scope.launch { repo.addHolderName(it)?.let { n -> holder = n } } },
+        onRemove = { scope.launch { repo.removeHolderName(it) } },
+        onDismiss = { showNames = false },
+    )
+
+    if (showBank) BankSheet(issuer, onSelect = { issuerManual = true; changeIssuer(it) }, onDismiss = { showBank = false })
+
     Scaffold(
         topBar = {
             TopAppBar(
@@ -413,7 +504,7 @@ fun EditScreen(
         bottomBar = {
             if (loaded) Surface(color = MaterialTheme.colorScheme.background) {
                 Button(
-                    enabled = !saving, onClick = ::save,
+                    enabled = !saving, onClick = ::save, shape = RoundedCornerShape(24.dp),
                     modifier = Modifier.fillMaxWidth().navigationBarsPadding().imePadding()
                         .padding(horizontal = Gutter, vertical = 12.dp).height(52.dp),
                 ) { Text(if (isNew) "Add card" else "Save changes", style = MaterialTheme.typography.titleSmall) }
@@ -421,16 +512,14 @@ fun EditScreen(
         },
     ) { pad ->
         if (!loaded) return@Scaffold
-        Column(Modifier.fillMaxSize().padding(pad).verticalScroll(scroll).padding(bottom = 24.dp)) {
-            error?.let {
-                Text(it, color = MaterialTheme.colorScheme.error, modifier = Modifier.padding(horizontal = Gutter + 4.dp, vertical = 8.dp))
-            }
+        Column(
+            Modifier.fillMaxSize().padding(pad).verticalScroll(scroll).padding(horizontal = Gutter).padding(top = 4.dp, bottom = 24.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            error?.let { Text(it, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodyMedium) }
 
-            // Capture first: either fills the number (and expiry, name) in one go.
-            Row(
-                Modifier.fillMaxWidth().padding(horizontal = Gutter, vertical = 4.dp),
-                horizontalArrangement = Arrangement.spacedBy(10.dp),
-            ) {
+            // Capture first: either fills the number (and expiry, name, bank) in one go.
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                 FilledTonalButton(onClick = { scanning = true }, modifier = Modifier.weight(1f).height(48.dp)) {
                     Icon(Icons.Outlined.PhotoCamera, null, Modifier.size(18.dp))
                     Spacer(Modifier.width(8.dp))
@@ -461,7 +550,7 @@ fun EditScreen(
                 trailingIcon = { if (detected != null) NetworkMark(detected, Modifier.padding(end = 12.dp)) },
                 visualTransformation = CardNumberSpacing,
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number, autoCorrectEnabled = false),
-                modifier = Modifier.fillMaxWidth().padding(horizontal = Gutter, vertical = 4.dp),
+                modifier = Modifier.fillMaxWidth(),
             )
 
             // Last 4 only matters when the full number is skipped.
@@ -473,11 +562,7 @@ fun EditScreen(
                 )
             }
 
-            Row(
-                Modifier.padding(horizontal = Gutter),
-                horizontalArrangement = Arrangement.spacedBy(10.dp),
-                verticalAlignment = Alignment.Top,
-            ) {
+            Row(horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.Top) {
                 OutlinedTextField(
                     value = expiry.filter(Char::isDigit),
                     onValueChange = { v ->
@@ -492,7 +577,7 @@ fun EditScreen(
                     supportingText = errors["expiry"]?.let { { Text(it) } },
                     visualTransformation = ExpirySlash,
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number, autoCorrectEnabled = false),
-                    modifier = Modifier.weight(1f).padding(vertical = 4.dp),
+                    modifier = Modifier.weight(1f),
                 )
                 OutlinedTextField(
                     value = cvv,
@@ -504,34 +589,62 @@ fun EditScreen(
                     supportingText = errors["cvv"]?.let { { Text(it) } },
                     visualTransformation = PasswordVisualTransformation(),
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.NumberPassword, autoCorrectEnabled = false),
-                    modifier = Modifier.weight(1f).padding(vertical = 4.dp),
+                    modifier = Modifier.weight(1f),
                 )
             }
-            Field(
-                holder, { holder = it }, "Name on card", hint = if (stored[3]) "Stored. Type to replace." else "Optional",
-                caps = KeyboardCapitalization.Characters,
-            )
 
-            // What the number told us (or the defaults): each chip opens its list to correct it.
-            FlowRow(
-                Modifier.fillMaxWidth().padding(horizontal = Gutter, vertical = 8.dp),
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-            ) {
-                ChipPicker(
-                    "Bank", issuer, Issuers.all, { it.name },
-                    onSelect = { issuerManual = true; changeIssuer(it.name) },
-                    optionLeading = { BankBadge(it.name, size = 28.dp) },
-                    leading = { BankBadge(issuer, size = 20.dp) },
-                ) { Text(issuer) }
-                ChipPicker(
-                    "Network", network, Issuers.networks, { it },
-                    onSelect = { network = it; networkManual = true },
-                    optionLeading = { NetworkMark(it) },
-                ) { NetworkMark(network, Modifier.padding(vertical = 4.dp)) }
-                ChipPicker(
-                    "Type", CardKind.label(kind), CardKind.all, { CardKind.label(it) },
-                    onSelect = { kind = it; kindManual = true },
-                ) { Text(CardKind.label(kind)) }
+            Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                Field(
+                    holder, { holder = it }, "Name on card", hint = if (stored[3]) "Stored. Type to replace." else "Optional",
+                    caps = KeyboardCapitalization.Characters,
+                    trailing = { IconButton(onClick = { showNames = true }) { Icon(Icons.Outlined.Contacts, "Saved names") } },
+                )
+                // Top three, hidden once the field already holds one of them.
+                val names = holderNames.take(3).takeUnless { n -> n.any { it.equals(holder.trim(), ignoreCase = true) } }.orEmpty()
+                if (names.isNotEmpty()) FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    names.forEachIndexed { i, n ->
+                        SuggestionChip(
+                            onClick = { holder = n },
+                            label = { Text(n) },
+                            icon = if (i == 0) { { Icon(Icons.Outlined.History, null, Modifier.size(SuggestionChipDefaults.IconSize)) } } else null,
+                            modifier = Modifier.semantics { contentDescription = "Use name $n" },
+                        )
+                    }
+                }
+            }
+
+            SingleChoiceSegmentedButtonRow(Modifier.fillMaxWidth()) {
+                CardKind.all.forEachIndexed { i, k ->
+                    SegmentedButton(
+                        selected = kind == k,
+                        onClick = { kind = k; kindManual = true },
+                        shape = SegmentedButtonDefaults.itemShape(i, CardKind.all.size),
+                        label = { Text(CardKind.label(k)) },
+                    )
+                }
+            }
+
+            Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                SelectField(
+                    "Bank", issuer, open = showBank, onClick = { showBank = true }, modifier = Modifier.weight(1.4f),
+                    leadingIcon = { BankBadge(issuer, size = 24.dp) },
+                )
+                SelectField(
+                    "Network", network, open = netOpen, onClick = { netOpen = true }, modifier = Modifier.weight(1f),
+                    inline = { NetworkMark(network) },
+                ) {
+                    DropdownMenu(expanded = netOpen, onDismissRequest = { netOpen = false }) {
+                        Issuers.networks.forEach { n ->
+                            DropdownMenuItem(
+                                text = { Text(n) },
+                                // Fixed-width slot so logos of different shapes line up.
+                                leadingIcon = { Box(Modifier.width(44.dp), contentAlignment = Alignment.Center) { NetworkMark(n) } },
+                                trailingIcon = if (n == network) { { Icon(Icons.Filled.Check, null) } } else null,
+                                onClick = { network = n; networkManual = true; netOpen = false },
+                            )
+                        }
+                    }
+                }
             }
 
             Field(
@@ -540,8 +653,7 @@ fun EditScreen(
             )
 
             val credit = kind == CardKind.CREDIT
-            Spacer(Modifier.height(12.dp))
-            Panel(Modifier.padding(horizontal = Gutter), padded = false) {
+            Panel(Modifier.padding(top = 4.dp), padded = false, color = MaterialTheme.colorScheme.surfaceContainer) {
                 val matched = CardArts.match(issuer, nickname)
                 val chosen = CardArts.byId(art)
                 val shownArt = when (art) { null -> matched; BANK_COLOURS -> null; else -> chosen }
@@ -554,58 +666,33 @@ fun EditScreen(
                         chosen.bank != issuer -> "${chosen.name} · ${chosen.bank}"
                         else -> chosen.name
                     },
+                    chevron = true,
                     onClick = { showDesign = true },
+                    // A square crop of the card art, in the same tile as the other rows' icons.
                     leading = {
-                        DesignSwatch(
-                            shownArt, Issuers.byName(issuer).color,
-                            Modifier.width(52.dp).aspectRatio(CARD_RATIO).clip(RoundedCornerShape(6.dp)),
-                        )
+                        Box(Modifier.size(TILE).clip(TileShape), contentAlignment = Alignment.Center) {
+                            DesignSwatch(shownArt, Issuers.byName(issuer).color, Modifier.requiredSize(TILE * CARD_RATIO, TILE))
+                        }
                     },
-                    action = { TextButton(onClick = { showDesign = true }) { Text("Change") } },
                 )
 
                 if (credit) {
-                    RowDivider()
+                    TileDivider()
                     val sd = statementDay.toIntOrNull()?.takeIf { it in 1..31 }
                     ListRow(
-                        icon = Icons.Outlined.Event,
+                        icon = null,
                         title = "Due date",
                         subtitle = when {
                             shownDue != null && sd != null -> "Next due ${Dates.short(shownDue)} · statement ~${ordinal(sd)}"
                             billingSet -> "Set the statement day under Billing cycle"
                             else -> "Optional · add for reminders"
                         },
+                        chevron = true,
                         onClick = { pickingDue = true },
-                        action = { TextButton(onClick = { pickingDue = true }) { Text(if (billingSet) "Change" else "Add") } },
+                        leading = { IconTile(Icons.Outlined.Event) },
                     )
-                    RowDivider()
-                    val off = dueOffset.toIntOrNull()
-                    ExpandRow(
-                        Icons.Outlined.Tune, "Billing cycle",
-                        if (billingSet && sd != null && off != null) "Statement ${ordinal(sd)} · due $off days later"
-                        else "Advanced · exact statement day and due offset",
-                        openCycle, { openCycle = !openCycle },
-                    ) {
-                        DayPickerField(
-                            label = "Statement day",
-                            day = statementDay.toIntOrNull(),
-                            onPick = { statementDay = it.toString(); billingSet = true; loadedDue = null; clear("statementDay") },
-                            modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
-                        )
-                        errors["statementDay"]?.let { ErrorLine(it) }
-                        Field(
-                            dueOffset,
-                            { dueOffset = it.filter(Char::isDigit).take(2); dueOffsetManual = true; billingSet = true; loadedDue = null; clear("dueOffset") },
-                            "Payment due (days after statement)",
-                            keyboard = KeyboardType.Number, padded = false, modifier = Modifier.fillMaxWidth(),
-                            support = errors["dueOffset"],
-                            info = if (billingSet) cycleDue()?.let { d ->
-                                "Next: statement ${Dates.short(d.minusDays(dueOffset.toLong()))}, due ${Dates.short(d)}"
-                            } else "Usually ${Issuers.byName(issuer).dueOffset} days for ${issuer}",
-                        )
-                    }
 
-                    RowDivider()
+                    TileDivider()
                     val chosenLeads = Billing.parseLeads(leads).toSet()
                     ExpandRow(
                         Icons.Outlined.NotificationsNone, "Reminders",
@@ -616,25 +703,24 @@ fun EditScreen(
                         val opts = (listOf(7, 5, 3, 2, 1, 0) + chosenLeads).distinct().sortedDescending()
                         FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                             opts.forEach { dDay ->
+                                val on = dDay in chosenLeads
                                 FilterChip(
-                                    selected = dDay in chosenLeads,
+                                    selected = on,
                                     onClick = {
-                                        val next = if (dDay in chosenLeads) chosenLeads - dDay else chosenLeads + dDay
+                                        val next = if (on) chosenLeads - dDay else chosenLeads + dDay
                                         leads = next.sortedDescending().joinToString(",")
                                     },
                                     label = { Text(reminderLeadLabel(dDay)) },
+                                    leadingIcon = if (on) { { Icon(Icons.Filled.Check, null, Modifier.size(FilterChipDefaults.IconSize)) } } else null,
                                 )
                             }
                         }
                         if (chosenLeads.isEmpty()) {
-                            Text(
-                                "No reminders for this card.", style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(top = 4.dp),
-                            )
+                            Text("No reminders for this card.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                         }
                     }
 
-                    RowDivider()
+                    TileDivider()
                     val limitP = Money.parse(limit)?.takeIf { it > 0 }
                     val outP = Money.parse(outstanding)?.takeIf { it > 0 }
                     ExpandRow(
@@ -646,11 +732,11 @@ fun EditScreen(
                         Row(horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.Top) {
                             Field(
                                 limit, { limit = it; clear("limit") }, "Credit limit", keyboard = KeyboardType.Decimal, prefix = "₹ ",
-                                modifier = Modifier.weight(1f), padded = false, support = errors["limit"],
+                                modifier = Modifier.weight(1f), support = errors["limit"],
                             )
                             Field(
                                 outstanding, { outstanding = it; clear("outstanding") }, "Outstanding", keyboard = KeyboardType.Decimal, prefix = "₹ ",
-                                modifier = Modifier.weight(1f), padded = false, support = errors["outstanding"],
+                                modifier = Modifier.weight(1f), support = errors["outstanding"],
                             )
                         }
                         Text(
@@ -658,19 +744,73 @@ fun EditScreen(
                             style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
                     }
+
+                    TileDivider()
+                    val off = dueOffset.toIntOrNull()
+                    ExpandRow(
+                        Icons.Outlined.Tune, "Billing cycle",
+                        if (billingSet && sd != null && off != null) "Statement ${ordinal(sd)} · due $off days later"
+                        else "Advanced · exact statement day and due offset",
+                        openCycle, { openCycle = !openCycle },
+                    ) {
+                        Column {
+                            DayPickerField(
+                                label = "Statement day",
+                                day = statementDay.toIntOrNull(),
+                                onPick = { statementDay = it.toString(); billingSet = true; loadedDue = null; clear("statementDay") },
+                                modifier = Modifier.fillMaxWidth(),
+                            )
+                            errors["statementDay"]?.let { ErrorLine(it) }
+                        }
+                        Field(
+                            dueOffset,
+                            { dueOffset = it.filter(Char::isDigit).take(2); dueOffsetManual = true; billingSet = true; loadedDue = null; clear("dueOffset") },
+                            "Payment due (days after statement)",
+                            keyboard = KeyboardType.Number,
+                            support = errors["dueOffset"],
+                            info = if (billingSet) cycleDue()?.let { d ->
+                                "Next: statement ${Dates.short(d.minusDays(dueOffset.toLong()))}, due ${Dates.short(d)}"
+                            } else "Usually ${Issuers.byName(issuer).dueOffset} days for $issuer",
+                        )
+                    }
                 }
 
-                RowDivider()
+                TileDivider()
                 ExpandRow(
                     Icons.AutoMirrored.Outlined.Notes, "Notes",
                     notes.trim().lineSequence().firstOrNull()?.takeIf { it.isNotBlank() } ?: "Optional",
                     openNotes, { openNotes = !openNotes },
                 ) {
-                    Field(notes, { notes = it }, "Notes", single = false, padded = false, modifier = Modifier.fillMaxWidth())
+                    Field(notes, { notes = it }, "Notes", single = false)
                 }
             }
         }
     }
+}
+
+/** A save waiting on the "already in your wallet" answer. */
+private class PendingSave(val card: Card, val enc: EncryptedDraft?, val match: Card)
+
+/**
+ * A saved card (active ones first, then archived) that [card] duplicates, or null.
+ * With the [full] number typed, a candidate whose stored number decrypts is compared exactly. That needs the
+ * vault's auth window from the save that just happened; if it has closed (or the key is lost) the number is
+ * treated as unknown. Without a comparable number: same bank and last four (and network, when [networkKnown]).
+ * Decrypted numbers live only in local vals here.
+ */
+private suspend fun findDuplicate(repo: Repo, card: Card, full: String?, networkKnown: Boolean): Card? {
+    val candidates = repo.allCards().filter { it.id != card.id && it.last4 == card.last4 }.sortedBy { it.archivedAt != null }
+    for (c in candidates) {
+        val blob = if (full != null) repo.secret(c.id)?.numberEnc else null
+        val theirs = blob?.let { b ->
+            withContext(Dispatchers.IO) { runCatching { Vault.decrypt(CardSecret(c.id, b, null, null, null)).number }.getOrNull() }
+        }
+        if (theirs != null) {
+            if (theirs.filter(Char::isDigit) == full) return c else continue
+        }
+        if (c.issuer == card.issuer && (!networkKnown || c.network == card.network)) return c
+    }
+    return null
 }
 
 /** The next due date on or after [today] for a statement on [day] (clamped) and a due [offset] days later. */
@@ -712,61 +852,98 @@ private fun DueDateDialog(initial: LocalDate?, removable: Boolean, onPick: (Loca
     }
 }
 
-/** An assist chip showing the current value; tapping opens the options as a dropdown (like [PickerField]). */
+/** Leading tile size and shape shared by every row of the form's panel, so titles line up. */
+private val TILE = 36.dp
+private val TileShape = RoundedCornerShape(10.dp)
+
 @Composable
-private fun <T> ChipPicker(
+private fun IconTile(icon: ImageVector) = Box(
+    Modifier.size(TILE).clip(TileShape).background(MaterialTheme.colorScheme.surfaceContainerHighest),
+    contentAlignment = Alignment.Center,
+) { Icon(icon, null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(20.dp)) }
+
+/** Divider between panel rows, inset to the text (16 padding + tile + 14 gap). */
+@Composable
+private fun TileDivider() =
+    HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant, modifier = Modifier.padding(start = 16.dp + TILE + 14.dp))
+
+/**
+ * Read-only outlined field that opens a picker: a sheet via [onClick], or the dropdown in [menu]. With [inline]
+ * (e.g. a logo) that content is drawn in place of the text; the value stays for screen readers.
+ */
+@Composable
+private fun SelectField(
     label: String,
-    valueText: String,
-    options: List<T>,
-    optionText: (T) -> String,
-    onSelect: (T) -> Unit,
-    optionLeading: (@Composable (T) -> Unit)? = null,
-    leading: (@Composable () -> Unit)? = null,
-    content: @Composable () -> Unit,
+    value: String,
+    open: Boolean,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+    leadingIcon: (@Composable () -> Unit)? = null,
+    inline: (@Composable () -> Unit)? = null,
+    menu: @Composable () -> Unit = {},
 ) {
-    var open by remember { mutableStateOf(false) }
-    Box {
-        AssistChip(
-            onClick = { open = true },
-            label = content,
-            leadingIcon = leading,
-            trailingIcon = { Icon(Icons.Filled.ArrowDropDown, null, Modifier.size(18.dp)) },
-            modifier = Modifier.semantics { contentDescription = "$label: $valueText. Change $label" },
+    Box(modifier) {
+        OutlinedTextField(
+            value = value,
+            onValueChange = {},
+            readOnly = true,
+            singleLine = true,
+            label = { Text(label, maxLines = 1) },
+            leadingIcon = leadingIcon,
+            trailingIcon = { Icon(if (open) Icons.Filled.KeyboardArrowUp else Icons.Filled.KeyboardArrowDown, null) },
+            textStyle = if (inline != null) LocalTextStyle.current.copy(color = Color.Transparent) else LocalTextStyle.current,
+            modifier = Modifier.fillMaxWidth(),
         )
-        DropdownMenu(expanded = open, onDismissRequest = { open = false }, modifier = Modifier.heightIn(max = 360.dp)) {
-            options.forEach { o ->
-                DropdownMenuItem(
-                    text = { Text(optionText(o)) },
-                    leadingIcon = optionLeading?.let { l -> { l(o) } },
-                    onClick = { onSelect(o); open = false },
-                )
-            }
-        }
+        // The outline starts 8dp down (room for the floating label): overlays match the box, not the label.
+        if (inline != null) Box(Modifier.matchParentSize().padding(top = 8.dp, start = 16.dp), contentAlignment = Alignment.CenterStart) { inline() }
+        Box(
+            Modifier.matchParentSize().padding(top = 8.dp).clip(RoundedCornerShape(4.dp))
+                .semantics { contentDescription = "$label: $value" }
+                .clickable(role = Role.DropdownList, onClickLabel = "Choose $label", onClick = onClick),
+        )
+        menu()
     }
 }
 
-/** A [ListRow] that opens to show [content] below it. */
+/** A panel row that opens to show [content] below it; only its height animates. */
 @Composable
-private fun ExpandRow(icon: ImageVector, title: String, subtitle: String, open: Boolean, onToggle: () -> Unit, content: @Composable ColumnScope.() -> Unit) {
-    val turn by animateFloatAsState(if (open) 180f else 0f, label = "expand")
+private fun ExpandRow(
+    icon: ImageVector, title: String, subtitle: String, open: Boolean, onToggle: () -> Unit,
+    content: @Composable ColumnScope.() -> Unit,
+) {
     ListRow(
-        icon = icon, title = title, subtitle = subtitle, onClick = onToggle,
+        icon = null, title = title, subtitle = subtitle, onClick = onToggle,
+        leading = { IconTile(icon) },
         action = {
             Icon(
-                Icons.Filled.KeyboardArrowDown, if (open) "Collapse $title" else "Expand $title",
-                tint = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.rotate(turn),
+                if (open) Icons.Filled.KeyboardArrowUp else Icons.Filled.KeyboardArrowDown,
+                if (open) "Collapse $title" else "Expand $title",
+                tint = MaterialTheme.colorScheme.onSurfaceVariant,
             )
         },
     )
-    AnimatedVisibility(open) {
-        Column(Modifier.fillMaxWidth().padding(start = 16.dp, end = 16.dp, bottom = 12.dp), content = content)
+    // Height goes 0..full on one tween both ways; the content stays drawn (clipped) until fully closed,
+    // so collapsing shrinks smoothly instead of dropping first.
+    val progress by animateFloatAsState(if (open) 1f else 0f, tween(260, easing = FastOutSlowInEasing), label = "expand")
+    if (open || progress > 0f) {
+        Column(
+            Modifier.fillMaxWidth().clipToBounds()
+                .layout { measurable, constraints ->
+                    val p = measurable.measure(constraints)
+                    val h = (p.height * progress).roundToInt()
+                    layout(p.width, h) { p.placeRelative(0, 0) }
+                }
+                .padding(start = 16.dp, end = 16.dp, bottom = 16.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp),
+            content = content,
+        )
     }
 }
 
 @Composable
 private fun ErrorLine(text: String) = Text(
     text, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error,
-    modifier = Modifier.padding(start = 16.dp, bottom = 4.dp),
+    modifier = Modifier.padding(start = 16.dp, top = 4.dp),
 )
 
 /** Shows digits in groups of four without putting spaces in the value (keeps the cursor sane). */
@@ -808,7 +985,7 @@ private fun Field(
     support: String? = null,
     info: String? = null,
     prefix: String? = null,
-    padded: Boolean = true,
+    trailing: (@Composable () -> Unit)? = null,
 ) {
     OutlinedTextField(
         value = value,
@@ -816,11 +993,13 @@ private fun Field(
         label = { Text(label) },
         placeholder = hint?.let { { Text(it) } },
         prefix = prefix?.let { { Text(it) } },
+        trailingIcon = trailing,
         singleLine = single,
         minLines = if (single) 1 else 3,
         isError = support != null,
         supportingText = (support ?: info)?.let { { Text(it) } },
         keyboardOptions = KeyboardOptions(keyboardType = keyboard, capitalization = caps, autoCorrectEnabled = keyboard == KeyboardType.Text),
-        modifier = (if (padded) modifier.fillMaxWidth().padding(horizontal = Gutter, vertical = 4.dp) else modifier.padding(vertical = 4.dp)),
+        // Spacing comes from the parent column (12dp between fields), not from each field.
+        modifier = modifier.fillMaxWidth(),
     )
 }
