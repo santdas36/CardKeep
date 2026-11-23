@@ -81,7 +81,7 @@ jobs:
           cp "$apk" "$name"
           flags=()
           [ "$PRERELEASE" = "true" ] && flags+=(--prerelease)
-          gh release create "$tag" "$name" --target "$GITHUB_SHA" --title "Cards $tag" --generate-notes "${flags[@]}"
+          gh release create "$tag" "$name" --target "$GITHUB_SHA" --title "CardKeep $tag" --generate-notes "${flags[@]}"
 
       - name: Clean up signing files
         if: always()

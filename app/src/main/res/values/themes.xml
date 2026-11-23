@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <color name="ic_bg">#FF141833</color>
+    <color name="ic_bg">#FFF4F6FF</color>
     <style name="Theme.Duely" parent="android:Theme.Material.NoActionBar">
         <item name="android:windowBackground">#FF0E0F13</item>
         <item name="android:colorAccent">#FF8AB4FF</item>

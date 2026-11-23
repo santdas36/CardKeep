@@ -1,8 +1,8 @@
-# Cards
+# CardKeep
 
 A private, local-first wallet for your credit, debit and prepaid cards on Android.
 
-Cards keeps your card details encrypted on your phone, reminds you before bills are due, and reads statements straight from your inbox, without accounts, analytics or a cloud.
+CardKeep keeps your card details encrypted on your phone, reminds you before bills are due, and reads statements straight from your inbox, without accounts, analytics or a cloud.
 
 > Status: early and moving fast. Built for Indian cards and banks first.
 
@@ -35,7 +35,7 @@ Requirements:
 The repo doesn't include a Gradle wrapper yet, so you need Gradle 8.14.3 installed yourself.
 
 ```sh
-gradle :app:assembleDebug        # debug build, installs alongside release as app.duely.debug
+gradle :app:assembleDebug        # debug build, installs alongside release as app.cardkeep.debug
 gradle :app:assembleRelease      # release build (signed only if keystore.properties exists)
 gradle :app:testReleaseUnitTest  # parser tests
 ```
@@ -54,7 +54,7 @@ keyPassword=...
 ## Project layout
 
 ```
-app/src/main/java/app/duely/
+app/src/main/java/app/cardkeep/
   autofill/    Autofill service and unlock screen
   capture/     NFC (EMV) reader and camera card-text parsing
   data/        Room entities, DAOs, migrations, backup, ledger
@@ -79,7 +79,7 @@ Issues and pull requests are welcome. Some ground rules:
 
 ### Contributing card art
 
-Card art lives in [`app/src/main/java/app/duely/ui/CardArt.kt`](app/src/main/java/app/duely/ui/CardArt.kt) as one line per design:
+Card art lives in [`app/src/main/java/app/cardkeep/ui/CardArt.kt`](app/src/main/java/app/cardkeep/ui/CardArt.kt) as one line per design:
 
 ```kotlin
 CardArt(
@@ -104,10 +104,10 @@ Guidelines:
 
 ## Credits and licences
 
-- BIN data adapted from [binlist-data](https://github.com/iannuttall/binlist-data) by Ian Nuttall, CC BY 4.0 ([`third_party/binlist-data-CC-BY-4.0.txt`](third_party/binlist-data-CC-BY-4.0.txt)).
+- BIN data adapted from [binlist-data](https://github.com/iannuttall/binlist-data) by Ian Nuttall and [bin-list-data](https://github.com/venelinkochev/bin-list-data) by Venelin Kochev, both CC BY 4.0 ([`third_party/binlist-data-CC-BY-4.0.txt`](third_party/binlist-data-CC-BY-4.0.txt)).
 - Inter typeface, SIL Open Font License ([`third_party/Inter-OFL.txt`](third_party/Inter-OFL.txt)).
-- Bank and card names are trademarks of their owners. Cards isn't affiliated with any bank or card network, and its card designs are original approximations.
+- Bank and card names are trademarks of their owners. CardKeep isn't affiliated with any bank or card network, and its card designs are original approximations.
 
 ## License
 
-[GNU General Public License v3.0](LICENSE). You can use, change and share Cards, and anything you distribute that's built on it has to stay open source under the same licence. Contributions, including card art, are accepted under the same terms.
+[GNU General Public License v3.0](LICENSE). You can use, change and share CardKeep, and anything you distribute that's built on it has to stay open source under the same licence. Contributions, including card art, are accepted under the same terms.

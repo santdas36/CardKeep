@@ -20,7 +20,7 @@
         android:dataExtractionRules="@xml/data_extraction_rules"
         android:icon="@mipmap/ic_launcher"
         android:roundIcon="@mipmap/ic_launcher"
-        android:label="Cards"
+        android:label="CardKeep"
         android:supportsRtl="true"
         android:networkSecurityConfig="@xml/network_security_config"
         android:theme="@style/Theme.Duely">
@@ -37,9 +37,9 @@
             <!-- Launcher shortcuts: Add / Scan / Tap card. Matched by action rather than an explicit
                  targetPackage, so they also work for the .debug applicationId. -->
             <intent-filter>
-                <action android:name="app.duely.action.ADD_CARD" />
-                <action android:name="app.duely.action.SCAN_CARD" />
-                <action android:name="app.duely.action.TAP_CARD" />
+                <action android:name="app.cardkeep.action.ADD_CARD" />
+                <action android:name="app.cardkeep.action.SCAN_CARD" />
+                <action android:name="app.cardkeep.action.TAP_CARD" />
                 <category android:name="android.intent.category.DEFAULT" />
             </intent-filter>
             <meta-data android:name="android.app.shortcuts" android:resource="@xml/shortcuts" />
@@ -55,7 +55,7 @@
         <service
             android:name=".autofill.CardAutofillService"
             android:exported="true"
-            android:label="Cards"
+            android:label="CardKeep"
             android:permission="android.permission.BIND_AUTOFILL_SERVICE">
             <intent-filter>
                 <action android:name="android.service.autofill.AutofillService" />

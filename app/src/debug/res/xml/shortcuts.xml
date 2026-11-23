@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Debug copy (package app.duely.debug); keep in sync with src/main. Long-press the launcher icon. Each opens Add card (behind the app lock if it's up); Scan and Tap
+<!-- Debug copy (package app.cardkeep.debug); keep in sync with src/main. Long-press the launcher icon. Each opens Add card (behind the app lock if it's up); Scan and Tap
      then start the camera / NFC reader once unlocked. Tap can't be hidden on phones without NFC
      (static shortcuts aren't conditional), so there it opens Add card with a short note. -->
 <shortcuts xmlns:android="http://schemas.android.com/apk/res/android">
@@ -9,8 +9,8 @@
         android:icon="@drawable/ic_shortcut_add"
         android:shortcutShortLabel="@string/shortcut_add_short"
         android:shortcutLongLabel="@string/shortcut_add_long">
-        <intent android:action="app.duely.action.ADD_CARD"
-            android:targetPackage="app.duely.debug" android:targetClass="app.duely.MainActivity" />
+        <intent android:action="app.cardkeep.action.ADD_CARD"
+            android:targetPackage="app.cardkeep.debug" android:targetClass="app.cardkeep.MainActivity" />
     </shortcut>
     <shortcut
         android:shortcutId="scan_card"
@@ -18,8 +18,8 @@
         android:icon="@drawable/ic_shortcut_scan"
         android:shortcutShortLabel="@string/shortcut_scan_short"
         android:shortcutLongLabel="@string/shortcut_scan_long">
-        <intent android:action="app.duely.action.SCAN_CARD"
-            android:targetPackage="app.duely.debug" android:targetClass="app.duely.MainActivity" />
+        <intent android:action="app.cardkeep.action.SCAN_CARD"
+            android:targetPackage="app.cardkeep.debug" android:targetClass="app.cardkeep.MainActivity" />
     </shortcut>
     <shortcut
         android:shortcutId="tap_card"
@@ -27,7 +27,7 @@
         android:icon="@drawable/ic_shortcut_tap"
         android:shortcutShortLabel="@string/shortcut_tap_short"
         android:shortcutLongLabel="@string/shortcut_tap_long">
-        <intent android:action="app.duely.action.TAP_CARD"
-            android:targetPackage="app.duely.debug" android:targetClass="app.duely.MainActivity" />
+        <intent android:action="app.cardkeep.action.TAP_CARD"
+            android:targetPackage="app.cardkeep.debug" android:targetClass="app.cardkeep.MainActivity" />
     </shortcut>
 </shortcuts>

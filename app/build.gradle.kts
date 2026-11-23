@@ -13,11 +13,11 @@ val keyProps = Properties().apply {
 }
 
 android {
-    namespace = "app.duely"
+    namespace = "app.cardkeep"
     compileSdk = 36
 
     defaultConfig {
-        applicationId = "app.duely"
+        applicationId = "app.cardkeep"
         minSdk = 26
         targetSdk = 36
         versionCode = 1

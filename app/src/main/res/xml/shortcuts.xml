@@ -9,8 +9,8 @@
         android:icon="@drawable/ic_shortcut_add"
         android:shortcutShortLabel="@string/shortcut_add_short"
         android:shortcutLongLabel="@string/shortcut_add_long">
-        <intent android:action="app.duely.action.ADD_CARD"
-            android:targetPackage="app.duely" android:targetClass="app.duely.MainActivity" />
+        <intent android:action="app.cardkeep.action.ADD_CARD"
+            android:targetPackage="app.cardkeep" android:targetClass="app.cardkeep.MainActivity" />
     </shortcut>
     <shortcut
         android:shortcutId="scan_card"
@@ -18,8 +18,8 @@
         android:icon="@drawable/ic_shortcut_scan"
         android:shortcutShortLabel="@string/shortcut_scan_short"
         android:shortcutLongLabel="@string/shortcut_scan_long">
-        <intent android:action="app.duely.action.SCAN_CARD"
-            android:targetPackage="app.duely" android:targetClass="app.duely.MainActivity" />
+        <intent android:action="app.cardkeep.action.SCAN_CARD"
+            android:targetPackage="app.cardkeep" android:targetClass="app.cardkeep.MainActivity" />
     </shortcut>
     <shortcut
         android:shortcutId="tap_card"
@@ -27,7 +27,7 @@
         android:icon="@drawable/ic_shortcut_tap"
         android:shortcutShortLabel="@string/shortcut_tap_short"
         android:shortcutLongLabel="@string/shortcut_tap_long">
-        <intent android:action="app.duely.action.TAP_CARD"
-            android:targetPackage="app.duely" android:targetClass="app.duely.MainActivity" />
+        <intent android:action="app.cardkeep.action.TAP_CARD"
+            android:targetPackage="app.cardkeep" android:targetClass="app.cardkeep.MainActivity" />
     </shortcut>
 </shortcuts>
