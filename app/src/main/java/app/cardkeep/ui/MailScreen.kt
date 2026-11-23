@@ -197,13 +197,13 @@ private fun Setup(ledger: Ledger, cards: List<CardEntity>, onConnected: () -> Un
     val unknown = banks.filter { it.senders.isEmpty() }
 
     Text(
-        "CardKeep reads statement emails from your bank, read-only, and unlocks the PDFs on this phone. Nothing is sent anywhere else.",
+        "Cards reads statement emails from your bank, read-only, and unlocks the PDFs on this phone. Nothing is sent anywhere else.",
         style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant,
     )
 
     Step(1, "Connect Gmail") {
         Text(
-            "Gmail needs an app password (not your normal one). Create one named \"CardKeep\" and paste it here. Needs 2-Step Verification.",
+            "Gmail needs an app password (not your normal one). Create one named \"Cards\" and paste it here. Needs 2-Step Verification.",
             style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
         FilledTonalButton(onClick = {
@@ -237,7 +237,7 @@ private fun Setup(ledger: Ledger, cards: List<CardEntity>, onConnected: () -> Un
 
     Step(3, "PDF passwords (optional)") {
         Text(
-            "Most banks lock statements with your name and birth date. Add them once and CardKeep unlocks them for you. You can also enter a password when a statement arrives.",
+            "Most banks lock statements with your name and birth date. Add them once and Cards unlocks them for you. You can also enter a password when a statement arrives.",
             style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
         Panel(padded = false, color = MaterialTheme.colorScheme.surfaceContainerHighest) {

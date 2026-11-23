@@ -7,7 +7,7 @@ import android.content.Context
 import android.content.Intent
 import android.net.Uri
 import android.os.Build
-import app.cardkeep.DuelyApp
+import app.cardkeep.CardsApp
 import app.cardkeep.domain.Billing
 import app.cardkeep.domain.CardWithDue
 import java.time.LocalDateTime
@@ -37,7 +37,7 @@ object Reminders {
     private fun pending(context: Context, cardId: Long, slot: Int, dueEpochDay: Long?, flags: Int, lead: Int? = null): PendingIntent? {
         val intent = Intent(context, ReminderReceiver::class.java)
             .setAction(ACTION_REMIND)
-            .setData(Uri.parse("duely://remind/$cardId/$slot"))
+            .setData(Uri.parse("cards://remind/$cardId/$slot"))
         if (dueEpochDay != null) intent.putExtra(EXTRA_DUE, dueEpochDay)
         if (lead != null) intent.putExtra(EXTRA_LEAD, lead)
         return PendingIntent.getBroadcast(context, 0, intent, flags or PendingIntent.FLAG_IMMUTABLE)
@@ -127,6 +127,6 @@ object Reminders {
 
     suspend fun rescheduleAll(context: Context) {
         pruneFired(context)
-        DuelyApp.from(context).repo.snapshot().forEach { schedule(context, it) }
+        CardsApp.from(context).repo.snapshot().forEach { schedule(context, it) }
     }
 }

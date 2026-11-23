@@ -30,7 +30,7 @@ object Backup {
     private const val FORMAT = 1
     private val PENDING_PDF_OUTCOMES = setOf("locked", "unmatched")
 
-    class WrongPassword : Exception("Wrong password, or not a CardKeep backup")
+    class WrongPassword : Exception("Wrong password, or not a Cards backup")
 
     /** What a backup holds, shown before restoring. */
     data class Summary(val createdAt: Long, val cards: Int, val statements: Int, val transactions: Int)

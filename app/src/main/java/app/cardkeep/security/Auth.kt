@@ -105,7 +105,7 @@ object Auth {
             inProgress = true
             lateinit var launcher: ActivityResultLauncher<Intent>
             launcher = activity.activityResultRegistry.register(
-                "duely_confirm_credential_${System.nanoTime()}", ActivityResultContracts.StartActivityForResult(),
+                "cards_confirm_credential_${System.nanoTime()}", ActivityResultContracts.StartActivityForResult(),
             ) { r ->
                 inProgress = false
                 launcher.unregister()

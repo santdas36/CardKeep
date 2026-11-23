@@ -2,7 +2,7 @@ package app.cardkeep.data
 
 import android.content.Context
 import androidx.room.withTransaction
-import app.cardkeep.DuelyApp
+import app.cardkeep.CardsApp
 import app.cardkeep.domain.Billing
 import app.cardkeep.domain.CardWithDue
 import app.cardkeep.reminders.Reminders
@@ -75,7 +75,7 @@ class Repo(private val dao: CardDao, private val ledgerDao: LedgerDao, private v
     suspend fun useHolderName(name: String) {
         val n = HolderName.normalise(name).takeIf { it.isNotEmpty() } ?: return
         val now = System.currentTimeMillis()
-        DuelyApp.from(context).db.withTransaction {
+        CardsApp.from(context).db.withTransaction {
             dao.insertHolderName(n, now)
             dao.bumpHolderName(n, now)
         }
@@ -126,7 +126,7 @@ class Repo(private val dao: CardDao, private val ledgerDao: LedgerDao, private v
      */
     suspend fun setPinned(card: Card, pinned: Boolean, replacing: Long? = null): Boolean =
         // Check first and write both rows together, so a refused pin changes nothing.
-        DuelyApp.from(context).db.withTransaction {
+        CardsApp.from(context).db.withTransaction {
             if (pinned) {
                 val others = dao.cards().count { it.pinned && it.archivedAt == null && it.id != card.id && it.id != replacing }
                 if (others >= app.cardkeep.ui.MAX_PINS) return@withTransaction false

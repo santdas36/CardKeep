@@ -127,7 +127,7 @@ fun SettingsScreen(prefs: Prefs, onMail: () -> Unit, onPasswords: () -> Unit = {
             SectionHeader("About")
             Panel {
                 Text(
-                    "CardKeep ${remember { context.packageManager.getPackageInfo(context.packageName, 0).versionName }}. Everything stays on this phone. The only network use is reading statement emails from your own mailbox. No analytics, no cloud; backups are encrypted files you keep.",
+                    "Cards ${remember { context.packageManager.getPackageInfo(context.packageName, 0).versionName }}. Everything stays on this phone. The only network use is reading statement emails from your own mailbox. No analytics, no cloud; backups are encrypted files you keep.",
                     style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
                 Text(
@@ -181,7 +181,7 @@ private fun ReminderHealth(tick: Int) {
         }
         if (!battery) {
             if (!notif || !exact) RowDivider()
-            Health("Battery optimised", "Some phones drop alarms. Tap and set CardKeep to unrestricted.") {
+            Health("Battery optimised", "Some phones drop alarms. Tap and set Cards to unrestricted.") {
                 openSystemSettings(context, Intent(Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS))
             }
         }
@@ -218,7 +218,7 @@ private fun LockTimeoutRow(timeout: Int, onChange: (Int) -> Unit) {
     }
 }
 
-/** Turns CardKeep on as the phone's autofill service for checkout forms. */
+/** Turns Cards on as the phone's autofill service for checkout forms. */
 @Composable
 private fun AutofillRow() {
     val context = LocalContext.current
@@ -230,7 +230,7 @@ private fun AutofillRow() {
         Icons.Outlined.CreditCard,
         if (on) "Card autofill is on" else "Fill cards at checkout",
         if (on) "Suggestions show the card name and last four. Filling asks for your fingerprint or PIN."
-        else "Use CardKeep as the phone's autofill service. Every fill asks for your fingerprint or PIN.",
+        else "Use Cards as the phone's autofill service. Every fill asks for your fingerprint or PIN.",
         chevron = true,
         onClick = {
             val intent = Intent(Settings.ACTION_REQUEST_SET_AUTOFILL_SERVICE, Uri.parse("package:${context.packageName}"))

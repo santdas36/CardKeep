@@ -5,13 +5,13 @@ import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import android.net.Uri
-import app.cardkeep.DuelyApp
+import app.cardkeep.CardsApp
 import app.cardkeep.data.hasDues
 import kotlinx.coroutines.launch
 
-private fun BroadcastReceiver.runAsync(context: Context, block: suspend (DuelyApp) -> Unit) {
+private fun BroadcastReceiver.runAsync(context: Context, block: suspend (CardsApp) -> Unit) {
     val pending = goAsync()
-    val app = DuelyApp.from(context)
+    val app = CardsApp.from(context)
     app.scope.launch {
         try {
             block(app)
@@ -64,7 +64,7 @@ class ActionReceiver : BroadcastReceiver() {
                 context, 0,
                 Intent(context, ActionReceiver::class.java)
                     .setAction(action)
-                    .setData(Uri.parse("duely://action/$cardId"))
+                    .setData(Uri.parse("cards://action/$cardId"))
                     .putExtra(Reminders.EXTRA_DUE, dueEpoch),
                 PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
             )

@@ -9,7 +9,7 @@ import android.widget.RemoteViews
 import android.widget.Toast
 import androidx.fragment.app.FragmentActivity
 import androidx.lifecycle.lifecycleScope
-import app.cardkeep.DuelyApp
+import app.cardkeep.CardsApp
 import app.cardkeep.R
 import app.cardkeep.security.Auth
 import app.cardkeep.security.Vault
@@ -48,7 +48,7 @@ class AutofillUnlockActivity : FragmentActivity() {
     }
 
     private suspend fun fill(cardId: Long, structure: AssistStructure): Dataset? {
-        val db = DuelyApp.from(this).db
+        val db = CardsApp.from(this).db
         val (card, secret) = withContext(Dispatchers.IO) { db.dao().card(cardId) to db.dao().secret(cardId) }
         if (card == null || secret == null) return null
         val draft = Auth.unlockVault(this, "Fill card details") { withContext(Dispatchers.IO) { Vault.decrypt(secret) } }

@@ -11,5 +11,5 @@ dependencyResolutionManagement {
         mavenCentral()
     }
 }
-rootProject.name = "Duely"
+rootProject.name = "CardKeep"
 include(":app")

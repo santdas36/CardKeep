@@ -1,7 +1,7 @@
 package app.cardkeep.ingest
 
 import android.content.Context
-import app.cardkeep.DuelyApp
+import app.cardkeep.CardsApp
 import app.cardkeep.data.Card
 import app.cardkeep.data.ImportLog
 import app.cardkeep.data.Ledger
@@ -49,7 +49,7 @@ object StatementSync {
                     e is java.io.IOException || e is javax.mail.MessagingException,
                 )
             }
-            withContext(NonCancellable) { runCatching { DuelyApp.from(context).repo.ledger.recordSync(result.message) } }
+            withContext(NonCancellable) { runCatching { CardsApp.from(context).repo.ledger.recordSync(result.message) } }
             _state.value = SyncState(false, result.message)
             result
         } finally {
@@ -70,7 +70,7 @@ object StatementSync {
     }
 
     private suspend fun doRun(context: Context): String {
-        val app = DuelyApp.from(context)
+        val app = CardsApp.from(context)
         val ledger = app.repo.ledger
         ledger.ensureSeeded()
         val src = ledger.mailSourceOnce() ?: return "Email sync isn't set up."
@@ -126,7 +126,7 @@ object StatementSync {
     /** Retries a kept PDF with a typed password and/or a chosen card. */
     suspend fun fix(context: Context, key: String, password: String?, cardId: Long?, remember: Boolean): Outcome = mutex.withLock {
         withContext(Dispatchers.IO) {
-            val app = DuelyApp.from(context)
+            val app = CardsApp.from(context)
             val ledger = app.repo.ledger
             val e = ledger.logEntry(key) ?: return@withContext Outcome("error", "That email isn't in the list any more.")
             val pdf = ledger.pendingPdf(key) ?: return@withContext Outcome("error", "The PDF isn't stored any more. Use Retry failed to fetch it again.")
@@ -145,7 +145,7 @@ object StatementSync {
     /** Imports a PDF picked from Files or shared from another app, through the same pipeline as email. */
     suspend fun importFile(context: Context, fileName: String, bytes: ByteArray): Outcome = mutex.withLock {
         withContext(Dispatchers.IO) {
-            val app = DuelyApp.from(context)
+            val app = CardsApp.from(context)
             val ledger = app.repo.ledger
             Pdf.init(context)
             ledger.ensureSeeded()

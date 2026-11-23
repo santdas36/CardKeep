@@ -54,7 +54,7 @@ import app.cardkeep.ui.LocalNavAnimatedScope
 import app.cardkeep.ui.LocalSharedTransitionScope
 import app.cardkeep.security.Auth
 import app.cardkeep.ui.DetailScreen
-import app.cardkeep.ui.DuelyTheme
+import app.cardkeep.ui.CardsTheme
 import app.cardkeep.ui.EditScreen
 import app.cardkeep.ui.FIXABLE
 import app.cardkeep.ui.importUri
@@ -88,7 +88,7 @@ class MainActivity : FragmentActivity() {
         // No screenshots, no preview in recents.
         window.setFlags(WindowManager.LayoutParams.FLAG_SECURE, WindowManager.LayoutParams.FLAG_SECURE)
 
-        val app = DuelyApp.from(this)
+        val app = CardsApp.from(this)
         Appearance.paletteId = app.prefs.palette
         Appearance.mode = app.prefs.themeMode
         deviceSecure = Auth.deviceSecure(this)
@@ -97,7 +97,7 @@ class MainActivity : FragmentActivity() {
         handleIntent(intent, shortcuts = savedInstanceState == null)
 
         setContent {
-            DuelyTheme {
+            CardsTheme {
                 val nav = rememberNavController()
                 val scope = rememberCoroutineScope()
                 val cards by app.repo.cards.collectAsStateWithLifecycle(initialValue = null)
@@ -393,7 +393,7 @@ class MainActivity : FragmentActivity() {
             locked = false
             return
         }
-        val timeoutMs = DuelyApp.from(this).prefs.lockTimeoutSec * 1000L
+        val timeoutMs = CardsApp.from(this).prefs.lockTimeoutSec * 1000L
         if (backgroundedAt > 0 && !Auth.inProgress && SystemClock.elapsedRealtime() - backgroundedAt >= timeoutMs) {
             locked = true
         }

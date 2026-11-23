@@ -1,4 +1,4 @@
-# Manual: Actions → "Build and release APK" → Run workflow.
+# Runs when versionName changes on main, or manually: Actions → "Build and release APK" → Run workflow.
 # Builds the signed release APK and publishes it as a GitHub release.
 #
 # Needs these repository secrets (Settings → Secrets and variables → Actions):
@@ -10,6 +10,11 @@
 name: Build and release APK
 
 on:
+  # Bumping versionName in app/build.gradle.kts and pushing to main releases that version.
+  # Pushes that leave versionName at an already-released version do nothing.
+  push:
+    branches: [main]
+    paths: [app/build.gradle.kts]
   workflow_dispatch:
     inputs:
       tag:
@@ -38,17 +43,32 @@ jobs:
         with:
           fetch-depth: 0
 
-      - uses: actions/setup-java@v4
+      # On a push, only release when this versionName hasn't been released yet.
+      - name: Check version
+        id: check
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          version=$(grep -oP 'versionName\s*=\s*"\K[^"]+' app/build.gradle.kts)
+          if [ "$GITHUB_EVENT_NAME" = "push" ] && gh release view "v$version" >/dev/null 2>&1; then
+            echo "v$version is already released; nothing to do."
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - uses: actions/setup-java@v5
+        if: steps.check.outputs.skip != 'true'
         with:
           distribution: temurin
           java-version: "17"
 
       # No wrapper in the repo; same Gradle as build.ps1.
       - uses: gradle/actions/setup-gradle@v4
+        if: steps.check.outputs.skip != 'true'
         with:
           gradle-version: "8.14.3"
 
       - name: Signing key
+        if: steps.check.outputs.skip != 'true'
         env:
           KEYSTORE_B64: ${{ secrets.RELEASE_KEYSTORE_BASE64 }}
           STORE_PASSWORD: ${{ secrets.RELEASE_STORE_PASSWORD }}
@@ -68,9 +88,11 @@ jobs:
           } > keystore.properties
 
       - name: Build
+        if: steps.check.outputs.skip != 'true'
         run: gradle :app:assembleRelease --no-daemon --console=plain
 
       - name: Release
+        if: steps.check.outputs.skip != 'true'
         env:
           GH_TOKEN: ${{ github.token }}
           INPUT_TAG: ${{ inputs.tag }}
@@ -82,8 +104,7 @@ jobs:
           tag="${INPUT_TAG:-v${version}}"
           # Same versionName released before: keep the tag unique.
           if [ -z "$INPUT_TAG" ] && gh release view "$tag" >/dev/null 2>&1; then tag="${tag}-${GITHUB_RUN_NUMBER}"; fi
-          # Fixed name, so releases/latest/download/cardkeep.apk always points at the newest APK.
-          name="cardkeep.apk"
+          name="Cards_${tag}.apk"
           cp "$apk" "$name"
           flags=()
           [ "$PRERELEASE" = "true" ] && flags+=(--prerelease)

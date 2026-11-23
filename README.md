@@ -12,9 +12,9 @@ Built for Indian banks and cards first. Early days, so expect changes.
 
 ## Install
 
-[![Download APK](https://img.shields.io/badge/Download-APK-3DDC84?style=for-the-badge&logo=android&logoColor=white)](https://github.com/santdas36/CardKeep/releases/latest/download/cardkeep.apk)
+[![Download APK](https://img.shields.io/badge/Download-APK-3DDC84?style=for-the-badge&logo=android&logoColor=white)](https://github.com/santdas36/CardKeep/releases/latest)
 
-Open the downloaded file on your phone to install it (Android 8.0 or newer). Older versions are on the [Releases](https://github.com/santdas36/CardKeep/releases) page.
+Download `Cards_<version>.apk` from the latest release and open it on your phone (Android 8.0 or newer). Older versions are on the [Releases](https://github.com/santdas36/CardKeep/releases) page.
 
 ## What it does
 
@@ -50,7 +50,7 @@ keyPassword=...
 
 Versions: `versionCode` is the git commit count, `versionName` is set by hand in `app/build.gradle.kts`.
 
-Releases are made by running the "Build and release APK" action from the Actions tab. It needs the signing secrets listed at the top of [`release.yml`](.github/workflows/release.yml).
+To release, bump `versionName` and push to main: the "Build and release APK" action builds the signed APK and publishes it. You can also run it by hand from the Actions tab. It needs the signing secrets listed at the top of [`release.yml`](.github/workflows/release.yml).
 
 ### Code layout
 

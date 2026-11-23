@@ -11,7 +11,7 @@ import android.service.autofill.FillResponse
 import android.service.autofill.SaveCallback
 import android.service.autofill.SaveRequest
 import android.widget.RemoteViews
-import app.cardkeep.DuelyApp
+import app.cardkeep.CardsApp
 import app.cardkeep.R
 import app.cardkeep.data.CardKind
 import kotlinx.coroutines.CoroutineScope
@@ -36,7 +36,7 @@ class CardAutofillService : AutofillService() {
 
         val job = scope.launch {
             val response = runCatching {
-                val db = DuelyApp.from(this@CardAutofillService).db
+                val db = CardsApp.from(this@CardAutofillService).db
                 val withSecrets = db.backup().secrets().filter { it.numberEnc != null }.map { it.cardId }.toSet()
                 val cards = db.dao().cards().filter { it.archivedAt == null && it.id in withSecrets }
                     .sortedWith(compareByDescending<app.cardkeep.data.Card> { it.pinned }.thenBy { it.nickname })

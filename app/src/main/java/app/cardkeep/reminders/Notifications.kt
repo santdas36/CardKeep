@@ -51,7 +51,7 @@ object Notifications {
         val open = PendingIntent.getActivity(
             context, 0,
             Intent(context, MainActivity::class.java)
-                .setData(Uri.parse("duely://card/${c.id}"))
+                .setData(Uri.parse("cards://card/${c.id}"))
                 .putExtra(EXTRA_OPEN_CARD, c.id)
                 .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP),
             PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
@@ -88,7 +88,7 @@ object Notifications {
         val open = PendingIntent.getActivity(
             context, 1,
             Intent(context, MainActivity::class.java)
-                .setData(Uri.parse("duely://statement/${s.id}"))
+                .setData(Uri.parse("cards://statement/${s.id}"))
                 .putExtra(EXTRA_OPEN_STATEMENT, s.id)
                 .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP),
             PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,

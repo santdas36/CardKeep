@@ -25,7 +25,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.fragment.app.FragmentActivity
-import app.cardkeep.DuelyApp
+import app.cardkeep.CardsApp
 import app.cardkeep.data.Backup
 import app.cardkeep.domain.Dates
 import app.cardkeep.reminders.Reminders
@@ -48,7 +48,7 @@ import java.time.ZoneId
 fun BackupSection() {
     val context = LocalContext.current
     val activity = context as FragmentActivity
-    val app = remember { DuelyApp.from(context) }
+    val app = remember { CardsApp.from(context) }
     val scope = rememberCoroutineScope()
     var lastBackup by remember { mutableLongStateOf(app.prefs.lastBackupAt) }
 

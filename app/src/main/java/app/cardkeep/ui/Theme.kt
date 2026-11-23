@@ -189,7 +189,7 @@ object Appearance {
 }
 
 @Composable
-fun DuelyTheme(content: @Composable () -> Unit) {
+fun CardsTheme(content: @Composable () -> Unit) {
     val dark = when (Appearance.mode) { "light" -> false; "dark" -> true; else -> isSystemInDarkTheme() }
     val palette = Palettes.byId(Appearance.paletteId)
     val scheme = palette.scheme(dark) ?: if (Build.VERSION.SDK_INT >= 31) {

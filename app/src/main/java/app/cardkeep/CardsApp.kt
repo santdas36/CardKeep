@@ -15,7 +15,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
 
-class DuelyApp : Application() {
+class CardsApp : Application() {
     val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
     lateinit var repo: Repo
         private set
@@ -39,14 +39,14 @@ class DuelyApp : Application() {
                 runCatching { repo.ledger.reclassifyAll() }
                 prefs.parserVersion = PARSER_VERSION
             }
-            Reminders.rescheduleAll(this@DuelyApp)
-            if (repo.ledger.mailSourceOnce()?.passwordEnc != null) SyncWorker.enable(this@DuelyApp)
+            Reminders.rescheduleAll(this@CardsApp)
+            if (repo.ledger.mailSourceOnce()?.passwordEnc != null) SyncWorker.enable(this@CardsApp)
         }
     }
 
     companion object {
         /** Bump when parsers improve enough that stored statements should be refreshed. */
         const val PARSER_VERSION = 4
-        fun from(context: Context) = context.applicationContext as DuelyApp
+        fun from(context: Context) = context.applicationContext as CardsApp
     }
 }

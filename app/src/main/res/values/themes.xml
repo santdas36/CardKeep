@@ -1,12 +1,12 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <color name="ic_bg">#FFF4F6FF</color>
-    <style name="Theme.Duely" parent="android:Theme.Material.NoActionBar">
+    <style name="Theme.Cards" parent="android:Theme.Material.NoActionBar">
         <item name="android:windowBackground">#FF0E0F13</item>
         <item name="android:colorAccent">#FF8AB4FF</item>
     </style>
     <!-- Invisible host for the fingerprint prompt behind an autofill suggestion. -->
-    <style name="Theme.Duely.Unlock" parent="android:Theme.Material.NoActionBar">
+    <style name="Theme.Cards.Unlock" parent="android:Theme.Material.NoActionBar">
         <item name="android:windowIsTranslucent">true</item>
         <item name="android:windowBackground">@android:color/transparent</item>
         <item name="android:windowNoTitle">true</item>

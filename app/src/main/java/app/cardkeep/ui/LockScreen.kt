@@ -56,7 +56,7 @@ private fun LockCover(onUnlock: () -> Unit) {
         ) {
             Icon(Icons.Filled.Lock, null, Modifier.size(40.dp), tint = MaterialTheme.colorScheme.primary)
             Spacer(Modifier.height(16.dp))
-            Text("CardKeep is locked", style = MaterialTheme.typography.titleMedium)
+            Text("Cards is locked", style = MaterialTheme.typography.titleMedium)
             Spacer(Modifier.height(24.dp))
             Button(onClick = onUnlock) { Text("Unlock") }
         }
