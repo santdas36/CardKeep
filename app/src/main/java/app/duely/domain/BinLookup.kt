@@ -7,7 +7,7 @@ data class BinInfo(val issuer: String?, val kind: String?)
 
 /**
  * Offline BIN (first six digits) lookup for Indian cards, from a small bundled table
- * (assets/bins_in.csv, derived from iannuttall/binlist-data, CC BY 4.0). Nothing is sent anywhere.
+ * (assets/bins_in.csv, derived from iannuttall/binlist-data and venelinkochev/bin-list-data, CC BY 4.0). Nothing is sent anywhere.
  * Coverage is partial: unknown prefixes simply return null.
  */
 object BinLookup {

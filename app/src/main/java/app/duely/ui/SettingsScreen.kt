@@ -131,7 +131,7 @@ fun SettingsScreen(prefs: Prefs, onMail: () -> Unit, onPasswords: () -> Unit = {
                     style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
                 Text(
-                    "Card BIN data: adapted from binlist-data by Ian Nuttall (github.com/iannuttall/binlist-data), licensed CC BY 4.0.",
+                    "Card BIN data: adapted from binlist-data by Ian Nuttall (github.com/iannuttall/binlist-data) and bin-list-data by Venelin Kochev (github.com/venelinkochev/bin-list-data), both licensed CC BY 4.0.",
                     style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.padding(top = 8.dp),
                 )
