@@ -12,6 +12,12 @@ val keyProps = Properties().apply {
     if (f.exists()) f.inputStream().use { load(it) }
 }
 
+// versionCode counts commits, so every build from a newer commit installs as an update.
+// CI checks out full history for this; without git it falls back to 1.
+val commitCount: Int = runCatching {
+    providers.exec { commandLine("git", "rev-list", "--count", "HEAD") }.standardOutput.asText.get().trim().toInt()
+}.getOrDefault(1)
+
 android {
     namespace = "app.cardkeep"
     compileSdk = 36
@@ -20,8 +26,8 @@ android {
         applicationId = "app.cardkeep"
         minSdk = 26
         targetSdk = 36
-        versionCode = 1
-        versionName = "0.1.0"
+        versionCode = commitCount
+        versionName = "0.2.0" // bump by hand for releases
         androidResources { localeFilters += "en" }
     }
 
