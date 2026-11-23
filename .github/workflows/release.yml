@@ -82,7 +82,8 @@ jobs:
           tag="${INPUT_TAG:-v${version}}"
           # Same versionName released before: keep the tag unique.
           if [ -z "$INPUT_TAG" ] && gh release view "$tag" >/dev/null 2>&1; then tag="${tag}-${GITHUB_RUN_NUMBER}"; fi
-          name="cardkeep-${tag}.apk"
+          # Fixed name, so releases/latest/download/cardkeep.apk always points at the newest APK.
+          name="cardkeep.apk"
           cp "$apk" "$name"
           flags=()
           [ "$PRERELEASE" = "true" ] && flags+=(--prerelease)

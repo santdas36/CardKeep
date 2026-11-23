@@ -1,46 +1,45 @@
+<img src="docs/icon.png" alt="CardKeep icon" width="80">
+
 # CardKeep
 
-A private, local-first wallet for your credit, debit and prepaid cards on Android.
+[![Release](https://img.shields.io/badge/release-v0.2.0-blue)](https://github.com/santdas36/CardKeep/releases)
+[![Android 8.0+](https://img.shields.io/badge/Android-8.0%2B-3DDC84)](#)
+[![License](https://img.shields.io/badge/license-GPL--3.0-lightgrey)](LICENSE)
 
-CardKeep keeps your card details encrypted on your phone, reminds you before bills are due, and reads statements straight from your inbox, without accounts, analytics or a cloud.
+A card wallet for Android that keeps everything on your phone. Store your credit, debit and prepaid cards, get reminded before bills are due, and import statements from your email. No account, no cloud, no analytics.
 
-> Status: early and moving fast. Built for Indian cards and banks first.
+Built for Indian banks and cards first. Early days, so expect changes.
 
-## Features
+## Install
 
-- **Card stack**: your top three cards stacked like a real wallet. Pull down to cycle them, scroll to fan them out, and tap "+ N more" for the rest.
-- **Card designs**: logo-free art for popular Indian cards, picked automatically from the bank and the card's nickname, with the bank's colours as the fallback. Contributions welcome, see [Card art](#contributing-card-art).
-- **Add a card quickly**: scan it with the camera, tap it on the phone over NFC, or type the number. The bank, network and type are filled in from an offline BIN table.
-- **Encrypted vault**: the card number, expiry, CVV and name on card are encrypted with keys in the Android Keystore. Revealing, copying or autofilling them asks for your fingerprint or PIN.
-- **Autofill**: fill card details at checkout in other apps. Every fill needs your fingerprint or PIN.
-- **Due reminders**: for each credit card, choose how many days before the due date to be reminded. Reminders are rescheduled after a reboot or a time change.
-- **Statement import**: optionally, connect Gmail with an app password. Statement PDFs are fetched and parsed on the phone to update dues, limits and transactions.
-- **Activity**: transactions from imported statements, grouped by category.
-- **Encrypted backup**: a password-protected backup file that you keep.
-- **App lock and privacy**: the app locks with your phone's lock, screenshots are blocked, and Android's cloud backup is off.
+[![Download APK](https://img.shields.io/badge/Download-APK-3DDC84?style=for-the-badge&logo=android&logoColor=white)](https://github.com/santdas36/CardKeep/releases/latest/download/cardkeep.apk)
 
-## Privacy
+Open the downloaded file on your phone to install it (Android 8.0 or newer). Older versions are on the [Releases](https://github.com/santdas36/CardKeep/releases) page.
 
-- Everything is stored on the phone in an SQLCipher database. The database key lives in the Android Keystore.
-- There's no account and no analytics. The app's only network use is reading statement emails from your own mailbox, and only if you connect it.
-- Card art is drawn in code. No images of real cards are downloaded or included.
+## What it does
+
+- Add a card by scanning it, tapping it on the back of the phone (NFC), or typing the number. Bank, network and type are filled in offline.
+- Card number, expiry, CVV and name are encrypted. Viewing, copying or autofilling them needs your fingerprint or PIN.
+- Autofill card details at checkout in other apps.
+- Due date reminders for credit cards, as many days ahead as you like.
+- Import statements from Gmail (optional, uses an app password). PDFs are unlocked and read on the phone.
+- Spending from imported statements, by category.
+- Encrypted backup to a file you keep.
+- App lock, no screenshots, and Android cloud backup turned off.
+
+The only network access is reading statement emails from your own mailbox, and only if you set it up.
 
 ## Building
 
-Requirements:
-- JDK 17
-- Android SDK with platform 36
-- Gradle 8.14.3
-
-The repo doesn't include a Gradle wrapper yet, so you need Gradle 8.14.3 installed yourself.
+You need JDK 17, the Android SDK (platform 36) and Gradle 8.14.3. There's no Gradle wrapper in the repo yet.
 
 ```sh
-gradle :app:assembleDebug        # debug build, installs alongside release as app.cardkeep.debug
-gradle :app:assembleRelease      # release build (signed only if keystore.properties exists)
-gradle :app:testReleaseUnitTest  # parser tests
+gradle :app:assembleDebug        # debug build (app.cardkeep.debug, installs next to release)
+gradle :app:assembleRelease      # release build
+gradle :app:testReleaseUnitTest  # tests
 ```
 
-To sign release builds, add `keystore.properties` at the repo root. It's ignored by git.
+Release builds are signed if a `keystore.properties` file (git-ignored) exists at the repo root:
 
 ```properties
 storeFile=release.jks
@@ -49,65 +48,60 @@ keyAlias=...
 keyPassword=...
 ```
 
-**Releases**: the "Build and release APK" GitHub Action (run manually from the Actions tab) builds a signed APK and publishes it as a GitHub release. It needs the signing secrets listed at the top of [`.github/workflows/release.yml`](.github/workflows/release.yml).
+Versions: `versionCode` is the git commit count, `versionName` is set by hand in `app/build.gradle.kts`.
 
-## Project layout
+Releases are made by running the "Build and release APK" action from the Actions tab. It needs the signing secrets listed at the top of [`release.yml`](.github/workflows/release.yml).
+
+### Code layout
 
 ```
 app/src/main/java/app/cardkeep/
-  autofill/    Autofill service and unlock screen
-  capture/     NFC (EMV) reader and camera card-text parsing
-  data/        Room entities, DAOs, migrations, backup, ledger
-  domain/      Billing cycles, banks (Issuers), BIN lookup, formatting
-  ingest/      Gmail (IMAP) sync, PDF unlock, statement parsers
-  reminders/   Alarms, notifications, workers
+  autofill/    autofill service
+  capture/     NFC reader, camera text parsing
+  data/        Room database, migrations, backup
+  domain/      billing cycles, banks, BIN lookup
+  ingest/      Gmail sync, PDF unlock, statement parsers
+  reminders/   alarms and notifications
   security/    Keystore keys, vault, biometric prompt
-  ui/          Compose screens; card face, card art, home stack
+  ui/          Compose screens, card art
 ```
 
-Stack: Kotlin, Jetpack Compose (Material 3), Room with SQLCipher, WorkManager, CameraX with ML Kit text recognition, PDFBox-Android and JavaMail.
+Kotlin, Jetpack Compose (Material 3), Room + SQLCipher, WorkManager, CameraX + ML Kit, PDFBox-Android, JavaMail.
 
 ## Contributing
 
-Issues and pull requests are welcome. Some ground rules:
+Issues and PRs are welcome. A few rules:
 
-- **No personal data.** Never commit real card numbers, real statement text, PDFs or passwords. Tests use synthetic data only. `StatementProbe` reads real PDFs from outside the repo, through environment variables, for local debugging.
-- **No new network access** beyond the user's own mailbox, and no analytics or tracking.
-- **Keep it small and readable.** Follow the existing style: Kotlin official style, short comments that explain why, and the shared components in `ui/Components.kt`.
-- **Database changes** need a Room migration in `data/AppDatabase.kt`. Commit the generated schema JSON from `app/schemas/`.
-- **Statement parsers** live in `ingest/`. A new bank parser should come with a synthetic test in `ParserTest`.
+- Never commit real card numbers, statements, PDFs or passwords. Tests use made-up data.
+- No new network access, analytics or tracking.
+- Database changes need a migration in `data/AppDatabase.kt` and the generated schema from `app/schemas/`.
+- New statement parsers go in `ingest/` with a test in `ParserTest`.
 
-### Contributing card art
+### Card art
 
-Card art lives in [`app/src/main/java/app/cardkeep/ui/CardArt.kt`](app/src/main/java/app/cardkeep/ui/CardArt.kt) as one line per design:
+Card designs live in [`ui/CardArt.kt`](app/src/main/java/app/cardkeep/ui/CardArt.kt), one entry per card:
 
 ```kotlin
 CardArt(
-    "hdfc_millennia",                 // unique id: bank_card
-    HDFC,                             // bank name exactly as in domain/Issuers.kt
+    "hdfc_millennia",                 // id: bank_card
+    HDFC,                             // bank, as named in domain/Issuers.kt
     "Millennia",                      // display name
-    listOf(0xFF1A3A8C, 0xFF2D66D4),   // background gradient, top-left to bottom-right
-    Motif.SHEEN,                      // the card's main motif
-    listOf(0xFF9CC0FF),               // motif colours
-    listOf("millennia"),              // nickname words that select this design
-    // optional: light = true (dark text on light cards), x/y (motif position), horizontal = true
+    listOf(0xFF1A3A8C, 0xFF2D66D4),   // background gradient
+    Motif.SHEEN,                      // pattern
+    listOf(0xFF9CC0FF),               // pattern colours
+    listOf("millennia"),              // nickname words that pick this design
+    // optional: light = true for light cards, x/y to move the pattern, horizontal = true
 ),
 ```
 
-The available motifs are in the `Motif` enum: `SHEEN`, `GLOW`, `RAYS`, `CHEVRON`, `ARROW`, `PYRAMID`, `RIBBON`, `STREAK`, `ORB`, `GLOBE`, `DOTS`, `FACETS`, `PIXELS`, `SWIRL`, `BAND`, `LINES`, `BRUSHED`, `RIPPLES`, `RINGS`, `SPARKLE`, `MOSAIC`, `SPLIT`, `ARC`, `CROSS` and `WAVES`. A new motif is welcome if no existing one fits.
+See the `Motif` enum for the available patterns. Match the card's colours and pattern, but leave out logos, names and network marks. In the PR, say which card it's based on; please don't attach card images.
 
-Guidelines:
-- **Approximate, don't copy.** Match the card's main colours and pattern. Don't include logos, bank names, network marks, mascots or text. A light blur is added automatically.
-- **Check contrast.** Set `light = true` when the card is light enough that white text would be hard to read.
-- **Choose specific match words.** When nicknames overlap, the longer match wins: for example, "regalia gold" beats "regalia".
-- **Say what you based it on.** In the PR, name the card and describe its look (colours, motif). Please don't attach copyrighted card images.
+## Credits
 
-## Credits and licences
-
-- BIN data adapted from [binlist-data](https://github.com/iannuttall/binlist-data) by Ian Nuttall and [bin-list-data](https://github.com/venelinkochev/bin-list-data) by Venelin Kochev, both CC BY 4.0 ([`third_party/binlist-data-CC-BY-4.0.txt`](third_party/binlist-data-CC-BY-4.0.txt)).
-- Inter typeface, SIL Open Font License ([`third_party/Inter-OFL.txt`](third_party/Inter-OFL.txt)).
-- Bank and card names are trademarks of their owners. CardKeep isn't affiliated with any bank or card network, and its card designs are original approximations.
+- BIN data from [binlist-data](https://github.com/iannuttall/binlist-data) (Ian Nuttall) and [bin-list-data](https://github.com/venelinkochev/bin-list-data) (Venelin Kochev), CC BY 4.0. See [`third_party/`](third_party/).
+- Inter typeface, SIL Open Font License.
+- Bank and card names belong to their owners. CardKeep isn't affiliated with any bank or card network.
 
 ## License
 
-[GNU General Public License v3.0](LICENSE). You can use, change and share CardKeep, and anything you distribute that's built on it has to stay open source under the same licence. Contributions, including card art, are accepted under the same terms.
+[GPL-3.0](LICENSE)
