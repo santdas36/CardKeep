@@ -523,43 +523,9 @@ private fun WalletStack(
     val scope = rememberCoroutineScope()
     st.decay = androidx.compose.animation.rememberSplineBasedDecay()
 
-    // Spread followers: the front card tracks the page scroll exactly; each card behind is pulled along by
-    // a spring attached to the card in front of it (a little softer the deeper it is). A slow drag keeps
-    // them tight, a fast flick fans them out with a real lag and catch-up. One frame loop for all cards,
-    // running only while something is still moving; it writes plain float states read at layout/draw time,
-    // so nothing recomposes while it runs.
-    val n = k + extras.size
-    val followers = remember(n) { Array(n) { mutableFloatStateOf(st.spread) } }
-    val followVel = remember(n) { FloatArray(n) }
-    LaunchedEffect(n, reduceMotion) {
-        var last = 0L
-        while (true) {
-            val target = st.spread
-            val still = (0 until n).all { kotlin.math.abs(followers[it].floatValue - target) < 0.0005f && kotlin.math.abs(followVel[it]) < 0.01f }
-            if (still) {
-                for (j in 0 until n) { followers[j].floatValue = target; followVel[j] = 0f }
-                androidx.compose.runtime.snapshotFlow { st.spread }.first { it != target }
-                last = 0L
-                continue
-            }
-            androidx.compose.runtime.withFrameNanos { t ->
-                val dt = if (last == 0L) 0.016f else ((t - last) / 1e9f).coerceIn(0.001f, 0.033f)
-                last = t
-                val sNow = st.spread
-                followers[0].floatValue = sNow; followVel[0] = 0f
-                for (j in 1 until n) {
-                    if (reduceMotion) { followers[j].floatValue = sNow; followVel[j] = 0f; continue }
-                    val stiff = 520f / (1f + 0.3f * min(j, 4))
-                    val damp = 2f * 0.9f * kotlin.math.sqrt(stiff)
-                    val x = followers[j].floatValue
-                    followVel[j] += (stiff * (followers[j - 1].floatValue - x) - damp * followVel[j]) * dt
-                    followers[j].floatValue = x + followVel[j] * dt
-                }
-            }
-        }
-    }
-    /** Card [j]'s spread progress (0 = stacked, 1 = listed), straight from its follower. */
-    fun fp(j: Int) = followers.getOrNull(j)?.floatValue?.coerceIn(0f, 1.03f) ?: st.spread
+    // Every card follows the page scroll directly, like the front card: no per-card lag or easing. The
+    // fan-out comes from each card travelling a different distance (deeper cards further) in the same time.
+    fun fp(@Suppress("UNUSED_PARAMETER") j: Int) = st.spread
 
     // One animatable stack slot per card, so a card continues from wherever it is.
     val ys = remember { mutableMapOf<Long, Animatable<Float, AnimationVector1D>>() }
@@ -574,8 +540,6 @@ private fun WalletStack(
         orderIds.forEachIndexed { i, id ->
             if (id == leaving) return@forEachIndexed
             launch {
-                // Front-most moves first; each card behind starts a beat later, like a pile settling.
-                if (!reduceMotion) kotlinx.coroutines.delay((orderIds.size - 1 - i).coerceAtLeast(0) * 28L)
                 ys[id]?.let { if (reduceMotion) it.snapTo(i * stripPx) else it.animateTo(i * stripPx, settle) }
             }
         }
