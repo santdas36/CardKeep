@@ -46,14 +46,14 @@ import androidx.compose.material.icons.outlined.Add
 import androidx.compose.material.icons.outlined.Alarm
 import androidx.compose.material.icons.outlined.BatteryChargingFull
 import androidx.compose.material.icons.outlined.CloudDownload
-import androidx.compose.material.icons.outlined.CloudOff
 import androidx.compose.material.icons.outlined.CreditCard
 import androidx.compose.material.icons.outlined.DocumentScanner
 import androidx.compose.material.icons.outlined.Keyboard
 import androidx.compose.material.icons.outlined.Lock
+import androidx.compose.material.icons.outlined.Fingerprint
+import androidx.compose.material.icons.outlined.MailOutline
 import androidx.compose.material.icons.outlined.Nfc
 import androidx.compose.material.icons.outlined.NotificationsNone
-import androidx.compose.material.icons.outlined.PersonOff
 import androidx.compose.material3.Button
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -69,6 +69,10 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material.icons.outlined.Contactless
+import androidx.compose.ui.unit.Dp
+import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.PathEffect
 import androidx.compose.ui.geometry.CornerRadius
@@ -155,14 +159,16 @@ fun OnboardingScreen(prefs: Prefs, onExit: (OnboardingExit) -> Unit) {
 
 /** One page: hero on top, then a big title, one line of text and the page's controls. Scrolls on small screens. */
 @Composable
-private fun Page(hero: @Composable () -> Unit, title: String, body: String, content: @Composable ColumnScope.() -> Unit = {}) {
+private fun Page(hero: @Composable () -> Unit, title: String, body: String? = null, content: @Composable ColumnScope.() -> Unit = {}) {
     // Clipped to the page, so a hero that spills sideways doesn't draw over the next page mid-swipe.
     Column(Modifier.fillMaxSize().clipToBounds().verticalScroll(rememberScrollState()).padding(horizontal = 24.dp)) {
         Box(Modifier.fillMaxWidth().height(300.dp), contentAlignment = Alignment.Center) { hero() }
         Spacer(Modifier.height(12.dp))
         Text(title, style = MaterialTheme.typography.headlineMedium.copy(fontWeight = FontWeight.SemiBold, lineHeight = 36.sp))
-        Spacer(Modifier.height(10.dp))
-        Text(body, style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        if (body != null) {
+            Spacer(Modifier.height(10.dp))
+            Text(body, style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        }
         Spacer(Modifier.height(22.dp))
         content()
         Spacer(Modifier.height(8.dp))
@@ -187,9 +193,11 @@ private fun CardFan() {
         FanCard(listOf(Color(0xFF1A1A1A), Color(0xFF3D3D46)), 7f, 30f / 190, 26f / 190),
     )
     BoxWithConstraints(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-        // As big as fits: the tilted, offset fan is about 1.4 card-widths wide and 1.0 tall. It may spill into
-        // the page's side padding (24dp each side) but not past the page, so a swipe never cuts a card off.
-        val w = minOf((maxWidth + 48.dp) / 1.42f, maxHeight / 1.0f)
+        // As tall as the hero allows (the tilted, offset fan stands about 1.0 card-widths tall). Placed so the
+        // middle (yellow) card's left edge lines up with the title below (that edge is 0.493 card-widths left of the
+        // fan's centre), so the blue card behind runs off the page on the left, on purpose.
+        val w = maxHeight / 1.0f
+        val shiftX = w * 0.493f - maxWidth / 2
         val shape = RoundedCornerShape(w * (14f / 190))
         cards.forEachIndexed { i, c ->
             val p = settle.value
@@ -200,52 +208,80 @@ private fun CardFan() {
                         val dx = c.x * w.toPx()
                         val dy = c.y * w.toPx()
                         rotationZ = lerp(0f, c.rotation, p)
-                        translationX = lerp(0f, (dx * kotlin.math.cos(a) - dy * kotlin.math.sin(a)).toFloat(), p)
+                        translationX = shiftX.toPx() + lerp(0f, (dx * kotlin.math.cos(a) - dy * kotlin.math.sin(a)).toFloat(), p)
                         translationY = lerp(0f, (dx * kotlin.math.sin(a) + dy * kotlin.math.cos(a)).toFloat(), p)
                     }
                     .shadow(16.dp, shape, ambientColor = Color.Black, spotColor = Color.Black)
                     .background(Brush.linearGradient(c.colors), shape),
             ) {
-                if (i == cards.lastIndex) {
-                    Text(
-                        "••••  4821", color = Color(0xFFDDDDDD), letterSpacing = 2.sp,
-                        style = MaterialTheme.typography.bodyMedium,
-                        modifier = Modifier.align(Alignment.BottomStart).padding(start = w * (16f / 190), bottom = w * (14f / 190)),
-                    )
-                }
+                if (i == cards.lastIndex) FrontCardDetails(w)
             }
         }
     }
 }
 
-private class FanCard(val colors: List<Color>, val rotation: Float, val x: Float, val y: Float)
-
-@OptIn(ExperimentalLayoutApi::class)
+/** The front card's face: name, chip, contactless mark, number, holder and network circles, all scaled to [w]. */
 @Composable
-private fun WelcomePage() {
-    Page(hero = { CardFan() }, title = "All your cards.\nOnly on your phone.", body = "Card details, due dates and statements, without an account.") {
-        FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            Chip(Icons.Outlined.Lock, "Encrypted")
-            Chip(Icons.Outlined.CloudOff, "Offline")
-            Chip(Icons.Outlined.PersonOff, "No account")
-        }
-        Spacer(Modifier.height(20.dp))
-        Text(
-            "Turning off the screen lock erases saved card numbers. Keep a backup.",
-            style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
+private fun BoxScope.FrontCardDetails(w: Dp) {
+    val k = w / 300.dp // laid out at 300dp wide, scaled from there
+    val ink = Color.White
+    // Soft diagonal sheen from the top-left.
+    Box(Modifier.matchParentSize().background(Brush.linearGradient(0f to ink.copy(alpha = 0.14f), 0.45f to Color.Transparent)))
+    Text("Cards", color = ink.copy(alpha = 0.9f), fontSize = (14 * k).sp, fontWeight = FontWeight.Medium, modifier = Modifier.padding(start = 24.dp * k, top = 22.dp * k))
+    Box(
+        Modifier.padding(start = 24.dp * k, top = 68.dp * k).size(40.dp * k, 30.dp * k).clip(RoundedCornerShape(6.dp * k))
+            .background(Brush.linearGradient(listOf(Color(0xFFF3D98A), Color(0xFFB8913E)))),
+    )
+    Icon(
+        Icons.Outlined.Contactless, null, tint = ink.copy(alpha = 0.7f),
+        modifier = Modifier.padding(start = 74.dp * k, top = 71.dp * k).size(24.dp * k),
+    )
+    Column(Modifier.align(Alignment.BottomStart).padding(start = 24.dp * k, bottom = 22.dp * k)) {
+        Text("••••  4821", color = Color(0xFFE6E6E6), fontSize = (16 * k).sp, letterSpacing = (3 * k).sp)
+        Spacer(Modifier.height(8.dp * k))
+        Text("ALEX MORGAN", color = ink.copy(alpha = 0.6f), fontSize = (11 * k).sp, letterSpacing = (1.5f * k).sp)
+    }
+    Box(Modifier.align(Alignment.BottomEnd).padding(end = 22.dp * k, bottom = 22.dp * k).size(48.dp * k, 30.dp * k)) {
+        Box(Modifier.size(30.dp * k).clip(CircleShape).background(Color(0xFFEB001B)))
+        Box(Modifier.padding(start = 18.dp * k).size(30.dp * k).clip(CircleShape).background(Color(0xEBF79E1B)))
     }
 }
 
+private class FanCard(val colors: List<Color>, val rotation: Float, val x: Float, val y: Float)
+
 @Composable
-private fun Chip(icon: ImageVector, text: String) {
-    Row(
-        Modifier.clip(CircleShape).background(MaterialTheme.colorScheme.surfaceContainerHigh).padding(horizontal = 12.dp, vertical = 8.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Icon(icon, null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(16.dp))
-        Spacer(Modifier.width(6.dp))
-        Text(text, style = MaterialTheme.typography.labelLarge)
+private fun WelcomePage() {
+    Page(hero = { CardFan() }, title = "All your cards.\nNone of the worry.") {
+        Column(
+            Modifier.fillMaxWidth().clip(RoundedCornerShape(24.dp)).background(MaterialTheme.colorScheme.surfaceContainerHigh)
+                .padding(horizontal = 16.dp, vertical = 4.dp),
+        ) {
+            Benefit(Icons.Outlined.NotificationsNone, "Never miss a due date", "A nudge before every bill")
+            HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f), thickness = 0.5.dp)
+            Benefit(Icons.Outlined.MailOutline, "Statements read for you", "Dues and spends from your inbox")
+            HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f), thickness = 0.5.dp)
+            Benefit(Icons.Outlined.Fingerprint, "Pay without the plastic", "Autofill at checkout")
+        }
+        Row(Modifier.fillMaxWidth().padding(top = 14.dp), horizontalArrangement = Arrangement.Center, verticalAlignment = Alignment.CenterVertically) {
+            Icon(Icons.Outlined.Lock, null, tint = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(14.dp))
+            Spacer(Modifier.width(6.dp))
+            Text("Encrypted · Offline · No account", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        }
+    }
+}
+
+/** One benefit row inside the grouped card: icon tile, a bold line and a short one under it. */
+@Composable
+private fun Benefit(icon: ImageVector, title: String, caption: String) {
+    Row(Modifier.fillMaxWidth().padding(vertical = 14.dp), verticalAlignment = Alignment.CenterVertically) {
+        Box(
+            Modifier.size(40.dp).clip(RoundedCornerShape(13.dp)).background(MaterialTheme.colorScheme.surfaceContainerHighest),
+            contentAlignment = Alignment.Center,
+        ) { Icon(icon, null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(20.dp)) }
+        Column(Modifier.padding(start = 14.dp)) {
+            Text(title, style = MaterialTheme.typography.titleSmall)
+            Text(caption, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        }
     }
 }
 
