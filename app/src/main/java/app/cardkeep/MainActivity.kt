@@ -61,6 +61,8 @@ import app.cardkeep.ui.importUri
 import app.cardkeep.ui.rememberPdfImporter
 import app.cardkeep.ui.HomeScreen
 import app.cardkeep.ui.LockScreen
+import app.cardkeep.ui.OnboardingExit
+import app.cardkeep.ui.OnboardingScreen
 import app.cardkeep.ui.SettingsScreen
 import kotlinx.coroutines.launch
 
@@ -346,6 +348,23 @@ class MainActivity : FragmentActivity() {
                     }
                     }
                     }
+                    }
+                    // First run, over Home: until finished or skipped. Anyone who already has cards never sees it.
+                    var onboarded by androidx.compose.runtime.remember { mutableStateOf(app.prefs.onboarded) }
+                    LaunchedEffect(everyCard) {
+                        if (!onboarded && everyCard.isNotEmpty()) { app.prefs.onboarded = true; onboarded = true }
+                    }
+                    if (!onboarded && everyCard.isEmpty()) {
+                        if (cards == null) {
+                            // Still loading: cover Home so it doesn't flash before we know.
+                            androidx.compose.material3.Surface(Modifier.fillMaxSize()) {}
+                        } else {
+                            OnboardingScreen(app.prefs) { exit ->
+                                app.prefs.onboarded = true
+                                onboarded = true
+                                if (exit is OnboardingExit.AddCard) nav.navigate(exit.start?.let { "edit/0?start=$it" } ?: "edit/0")
+                            }
+                        }
                     }
                     if (locked) {
                         // Added after every other Back handler, so it wins: Back never pops the screens behind the lock.

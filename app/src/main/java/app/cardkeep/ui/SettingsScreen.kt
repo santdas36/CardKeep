@@ -144,7 +144,7 @@ fun SettingsScreen(prefs: Prefs, onMail: () -> Unit, onPasswords: () -> Unit = {
  * Opens a system settings screen; some phones don't have every one, so fall back to this app's
  * details page, then to the main Settings screen.
  */
-private fun openSystemSettings(context: android.content.Context, intent: Intent) {
+internal fun openSystemSettings(context: android.content.Context, intent: Intent) {
     runCatching { context.startActivity(intent) }
         .recoverCatching {
             context.startActivity(Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, Uri.parse("package:${context.packageName}")))

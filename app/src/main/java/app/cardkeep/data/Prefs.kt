@@ -20,6 +20,11 @@ class Prefs(context: Context) {
         get() = sp.getInt("parser_version", 1)
         set(v) = sp.edit { putInt("parser_version", v) }
 
+    /** The first-run screens were finished or skipped (or the app already had cards). */
+    var onboarded: Boolean
+        get() = sp.getBoolean("onboarded", false)
+        set(v) = sp.edit { putBoolean("onboarded", v) }
+
     var askedNotifications: Boolean
         get() = sp.getBoolean("asked_notif", false)
         set(v) = sp.edit { putBoolean("asked_notif", v) }

@@ -54,8 +54,6 @@ fun BackupSection() {
 
     var exporting by remember { mutableStateOf(false) }
     var pendingFile by remember { mutableStateOf<ByteArray?>(null) } // sealed backup waiting for a save location
-    var opening by remember { mutableStateOf<ByteArray?>(null) } // picked file waiting for its password
-    var ready by remember { mutableStateOf<Backup.Contents?>(null) } // decrypted, waiting for confirmation
     var busy by remember { mutableStateOf(false) }
 
     val saver = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/octet-stream")) { uri ->
@@ -67,12 +65,8 @@ fun BackupSection() {
             toast(context, if (ok) "Backup saved" else "Couldn't save the backup")
         }
     }
-    val picker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
-        if (uri != null) scope.launch {
-            opening = withContext(Dispatchers.IO) { runCatching { context.contentResolver.openInputStream(uri)?.use { it.readBytes() } }.getOrNull() }
-            if (opening == null) toast(context, "Couldn't read that file")
-        }
-    }
+
+    val restore = rememberRestoreBackup()
 
     Panel(padded = false) {
         ListRow(
@@ -84,7 +78,7 @@ fun BackupSection() {
         RowDivider()
         ListRow(
             Icons.Outlined.CloudDownload, "Restore from backup", "Replaces everything on this phone",
-            chevron = true, onClick = { picker.launch(arrayOf("*/*")) },
+            chevron = true, onClick = restore,
         )
     }
 
@@ -133,6 +127,27 @@ fun BackupSection() {
                     "Not included: your Gmail app password.",
                 style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
+        }
+    }
+}
+
+/**
+ * Restore: pick a file → password → summary → confirm → unlock → replace everything. Shows its own sheets
+ * and dialogs; returns the action that starts it. [onRestored] gets the number of cards restored.
+ */
+@Composable
+fun rememberRestoreBackup(onRestored: (Int) -> Unit = {}): () -> Unit {
+    val context = LocalContext.current
+    val activity = context as FragmentActivity
+    val app = remember { CardsApp.from(context) }
+    val scope = rememberCoroutineScope()
+    var opening by remember { mutableStateOf<ByteArray?>(null) } // picked file waiting for its password
+    var ready by remember { mutableStateOf<Backup.Contents?>(null) } // decrypted, waiting for confirmation
+    var busy by remember { mutableStateOf(false) }
+    val picker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
+        if (uri != null) scope.launch {
+            opening = withContext(Dispatchers.IO) { runCatching { context.contentResolver.openInputStream(uri)?.use { it.readBytes() } }.getOrNull() }
+            if (opening == null) toast(context, "Couldn't read that file")
         }
     }
 
@@ -197,10 +212,12 @@ fun BackupSection() {
                     Appearance.mode = app.prefs.themeMode
                     Reminders.rescheduleAll(context)
                     toast(context, "Restored $n card${if (n == 1) "" else "s"}")
+                    onRestored(n)
                 }
             },
         )
     }
+    return { picker.launch(arrayOf("*/*")) }
 }
 
 @Composable
