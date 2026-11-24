@@ -8,7 +8,19 @@
 
 A card wallet for Android that keeps everything on your phone. Store your credit, debit and prepaid cards, get reminded before bills are due, and import statements from your email. No account, no cloud, no analytics.
 
-Built for Indian banks and cards first. Early days, so expect changes.
+Built for Indian banks and cards first.
+
+<table>
+  <tr>
+    <td><img src="docs/screenshots/onboarding.webp" alt="Welcome screen" width="170"></td>
+    <td><img src="docs/screenshots/home.webp" alt="Home" width="170"></td>
+    <td><img src="docs/screenshots/card.webp" alt="Card details" width="170"></td>
+    <td><img src="docs/screenshots/transaction.webp" alt="Editing a transaction" width="170"></td>
+    <td><img src="docs/screenshots/email.webp" alt="Email statement setup" width="170"></td>
+  </tr>
+</table>
+
+▶ [Watch the demo](docs/demo.mp4)
 
 ## Install
 
