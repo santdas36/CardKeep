@@ -270,7 +270,8 @@ fun ActivityScreen(
                         }
                     }
 
-                    if (filtered.isNotEmpty()) {
+                    // Shown even for an empty month (as ₹0) once there's any data; with none, the prompt above says what to do.
+                    if (txns.isNotEmpty()) {
                         SpendSummary(filtered, previous, ym, catById) { id -> if (id !in catFilter) catFilter = ArrayList(catFilter + id) }
                     }
                 }
@@ -368,7 +369,12 @@ private fun Prompt(icon: androidx.compose.ui.graphics.vector.ImageVector, title:
     }
 }
 
-/** Spent this month, change vs last month, a category bar, and payments/cashback kept apart. */
+/**
+ * The month's spends (net of refunds; payments and cashback left out), change vs last month, the top
+ * categories as one stacked bar plus chips, and payments/cashback kept apart. Follows the month and
+ * filters above, since that's what the list below shows.
+ */
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun SpendSummary(list: List<Txn>, previous: List<Txn>, ym: YearMonth, catById: Map<Long, Category>, onCategory: (Long) -> Unit) {
     val spent = spentOf(list)
@@ -378,12 +384,16 @@ private fun SpendSummary(list: List<Txn>, previous: List<Txn>, ym: YearMonth, ca
         .mapValues { (_, l) -> spentOf(l) }
         .filterValues { it > 0 }
         .toList().sortedByDescending { it.second }
+    val top = byCat.take(4)
+    val other = byCat.drop(4).sumOf { it.second }
     val payments = list.filter { it.kind == TxnKind.PAYMENT }.sumOf { it.amountPaise }
     val cashback = list.filter { it.kind == TxnKind.CASHBACK }.sumOf { if (it.isCredit) it.amountPaise else -it.amountPaise }
+    val monthName = ym.month.name.lowercase().replaceFirstChar(Char::uppercase)
+    fun colorOf(id: Long?) = id?.let { catById[it] }?.let { Color(it.color) }
 
     Panel(Modifier.padding(horizontal = Gutter, vertical = 8.dp)) {
         Column {
-            Text("Spent", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Text("$monthName spends", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
             Row(verticalAlignment = Alignment.Bottom) {
                 Text(Money.inr(spent.coerceAtLeast(0), true), style = MaterialTheme.typography.headlineMedium.tabular)
                 if (before > 0 && spent > 0) {
@@ -395,28 +405,27 @@ private fun SpendSummary(list: List<Txn>, previous: List<Txn>, ym: YearMonth, ca
                     )
                 }
             }
-            if (byCat.isNotEmpty() && spent > 0) {
-                Spacer(Modifier.height(10.dp))
-                Row(Modifier.fillMaxWidth().height(10.dp).clip(RoundedCornerShape(5.dp))) {
-                    byCat.forEach { (id, v) ->
-                        Box(
-                            Modifier.weight(v.toFloat()).fillMaxHeight()
-                                .background(id?.let { catById[it] }?.let { Color(it.color) } ?: MaterialTheme.colorScheme.outline),
-                        )
+            if (top.isNotEmpty() && spent > 0) {
+                Spacer(Modifier.height(12.dp))
+                // Weights are the amounts themselves (all > 0, as Modifier.weight requires).
+                Row(
+                    Modifier.fillMaxWidth().height(10.dp).clip(RoundedCornerShape(5.dp)),
+                    horizontalArrangement = Arrangement.spacedBy(2.dp),
+                ) {
+                    top.forEach { (id, v) ->
+                        Box(Modifier.weight(v.toFloat()).fillMaxHeight().background(colorOf(id) ?: MaterialTheme.colorScheme.outline))
                     }
+                    if (other > 0) Box(Modifier.weight(other.toFloat()).fillMaxHeight().background(MaterialTheme.colorScheme.outlineVariant))
                 }
-                Spacer(Modifier.height(8.dp))
-                byCat.take(3).forEach { (id, v) ->
-                    val c = id?.let { catById[it] }
-                    Row(
-                        Modifier.fillMaxWidth().clip(RoundedCornerShape(6.dp)).clickable(enabled = id != null) { id?.let(onCategory) }
-                            .heightIn(min = 32.dp).padding(vertical = 4.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                    ) {
-                        Box(Modifier.size(10.dp).clip(CircleShape).background(c?.let { Color(it.color) } ?: MaterialTheme.colorScheme.outline))
-                        Text(c?.name ?: "Uncategorised", style = MaterialTheme.typography.bodyMedium, modifier = Modifier.padding(start = 10.dp).weight(1f))
-                        Text("${(v * 100 / spent)}%", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                        Text(Money.inr(v, true), style = MaterialTheme.typography.bodyMedium.tabular, modifier = Modifier.padding(start = 12.dp))
+                Spacer(Modifier.height(10.dp))
+                FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    top.forEach { (id, v) ->
+                        CategoryChip(
+                            id?.let { catById[it] }?.name ?: "Uncategorised", (v * 100 / spent).coerceIn(0L, 100L).toInt(),
+                            colorOf(id) ?: MaterialTheme.colorScheme.outline,
+                            // Tapping a category filters the list to it, as before.
+                            onClick = id?.let { { onCategory(it) } },
+                        )
                     }
                 }
             }
@@ -431,6 +440,21 @@ private fun SpendSummary(list: List<Txn>, previous: List<Txn>, ym: YearMonth, ca
                 )
             }
         }
+    }
+}
+
+/** Small pill: the category's dot (matching its bar segment), name and share. */
+@Composable
+private fun CategoryChip(name: String, pct: Int, color: Color, onClick: (() -> Unit)?) {
+    Row(
+        Modifier.clip(RoundedCornerShape(50)).background(MaterialTheme.colorScheme.surfaceContainerHighest)
+            .then(if (onClick != null) Modifier.clickable(onClick = onClick) else Modifier)
+            .padding(horizontal = 10.dp, vertical = 6.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Box(Modifier.size(8.dp).clip(CircleShape).background(color))
+        Text(name, style = MaterialTheme.typography.labelMedium, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(start = 6.dp))
+        Text(" $pct%", style = MaterialTheme.typography.labelMedium.tabular, color = MaterialTheme.colorScheme.onSurfaceVariant)
     }
 }
 

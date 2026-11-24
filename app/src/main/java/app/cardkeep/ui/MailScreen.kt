@@ -3,19 +3,23 @@ package app.cardkeep.ui
 import android.content.Intent
 import android.net.Uri
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
@@ -55,6 +59,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.input.KeyboardType
@@ -196,38 +201,57 @@ private fun Setup(ledger: Ledger, cards: List<CardEntity>, onConnected: () -> Un
     val known = banks.filter { it.senders.isNotEmpty() }
     val unknown = banks.filter { it.senders.isEmpty() }
 
-    Text(
-        "Cards reads statement emails from your bank, read-only, and unlocks the PDFs on this phone. Nothing is sent anywhere else.",
-        style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant,
-    )
+    // Only marks progress (the numbers light up as you go); every field stays usable at any time.
+    var openedGoogle by rememberSaveable { mutableStateOf(false) }
+    val canConnect = user.contains('@') && password.isNotBlank()
 
-    Step(1, "Connect Gmail") {
+    Column(Modifier.padding(top = 8.dp)) {
+        Text("Import from Gmail", style = MaterialTheme.typography.titleLarge)
         Text(
-            "Gmail needs an app password (not your normal one). Create one named \"Cards\" and paste it here. Needs 2-Step Verification.",
-            style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
-        FilledTonalButton(onClick = {
-            runCatching { context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("https://myaccount.google.com/apppasswords"))) }
-        }) { Icon(Icons.AutoMirrored.Outlined.OpenInNew, null, Modifier.size(18.dp)); Text("  Open Google app passwords") }
-        OutlinedTextField(
-            user, { user = it.trim() }, label = { Text("Gmail address") }, singleLine = true, modifier = Modifier.fillMaxWidth(),
-            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email, autoCorrectEnabled = false),
-        )
-        OutlinedTextField(
-            password, { password = it }, label = { Text("App password") }, placeholder = { Text("16 letters") }, singleLine = true,
-            visualTransformation = PasswordVisualTransformation(), modifier = Modifier.fillMaxWidth(),
-            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password, autoCorrectEnabled = false),
+            "Cards reads statement emails from your bank, read-only, and unlocks the PDFs on this phone. Nothing is sent anywhere else.",
+            style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.padding(top = 4.dp),
         )
     }
 
-    Step(2, "Banks to look for") {
+    Panel {
+        Column(verticalArrangement = Arrangement.spacedBy(20.dp)) {
+            Step(1, "Create an app password", "Google account → Security → App passwords", reached = true) {
+                InlineAction("Open Google") {
+                    openedGoogle = true
+                    runCatching { context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("https://myaccount.google.com/apppasswords"))) }
+                }
+            }
+            Step(2, "Paste it here", null, reached = openedGoogle || user.isNotBlank() || password.isNotBlank()) {
+                Column(Modifier.padding(top = 8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    OutlinedTextField(
+                        user, { user = it.trim() }, label = { Text("Gmail address") }, singleLine = true, modifier = Modifier.fillMaxWidth(),
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email, autoCorrectEnabled = false),
+                    )
+                    OutlinedTextField(
+                        password, { password = it }, label = { Text("App password") }, placeholder = { Text("16 letters") }, singleLine = true,
+                        visualTransformation = PasswordVisualTransformation(), modifier = Modifier.fillMaxWidth(),
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password, autoCorrectEnabled = false),
+                    )
+                }
+            }
+            Step(3, "Add statement passwords", "Name and birth date, to unlock PDFs", reached = canConnect) {
+                InlineAction("Statement passwords", onPasswords)
+            }
+        }
+    }
+
+    // Which banks' emails are looked for; extra senders cover banks without built-in ones.
+    Panel {
+        Text("Banks to look for", style = MaterialTheme.typography.titleSmall)
         Text(
             when {
                 banks.isEmpty() -> "Add a card first. Senders come from your cards' banks."
                 known.isEmpty() -> "No known statement senders for your banks yet. Add the sender address below."
                 else -> known.joinToString(", ") { it.name } + (if (unknown.isNotEmpty()) ". Add senders for ${unknown.joinToString(", ") { it.name }} below." else "")
             },
-            style = MaterialTheme.typography.bodyMedium,
+            style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.padding(top = 2.dp, bottom = 8.dp),
         )
         OutlinedTextField(
             extra, { extra = it }, label = { Text("Extra sender addresses (optional)") }, singleLine = true, modifier = Modifier.fillMaxWidth(),
@@ -235,20 +259,10 @@ private fun Setup(ledger: Ledger, cards: List<CardEntity>, onConnected: () -> Un
         )
     }
 
-    Step(3, "PDF passwords (optional)") {
-        Text(
-            "Most banks lock statements with your name and birth date. Add them once and Cards unlocks them for you. You can also enter a password when a statement arrives.",
-            style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
-        Panel(padded = false, color = MaterialTheme.colorScheme.surfaceContainerHighest) {
-            ListRow(Icons.Outlined.Key, "Statement passwords", chevron = true, onClick = onPasswords)
-        }
-    }
-
     status?.let { Text(it, style = MaterialTheme.typography.bodyMedium, color = if (it.startsWith("Connected")) Good else Danger) }
     Button(
-        enabled = !busy && user.contains('@') && password.isNotBlank(),
-        modifier = Modifier.fillMaxWidth(),
+        enabled = !busy && canConnect,
+        modifier = Modifier.fillMaxWidth().height(48.dp),
         onClick = {
             scope.launch {
                 busy = true
@@ -271,11 +285,26 @@ private fun Setup(ledger: Ledger, cards: List<CardEntity>, onConnected: () -> Un
     }
 }
 
+/** One numbered setup step: number circle (greyed until reached), title, muted hint, then its content. */
 @Composable
-private fun Step(n: Int, title: String, content: @Composable () -> Unit) {
-    SectionHeader("$n · $title")
-    Panel {
-        Column(verticalArrangement = Arrangement.spacedBy(10.dp)) { content() }
+private fun Step(n: Int, title: String, hint: String?, reached: Boolean, content: @Composable () -> Unit) {
+    Row {
+        Box(
+            Modifier.size(24.dp).clip(CircleShape)
+                .background(if (reached) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surfaceContainerHighest),
+            contentAlignment = Alignment.Center,
+        ) {
+            Text(
+                "$n", style = MaterialTheme.typography.labelMedium,
+                color = if (reached) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+        Column(Modifier.weight(1f).padding(start = 12.dp)) {
+            // Nudged down so the title's first line centres on the 24dp circle.
+            Text(title, style = MaterialTheme.typography.titleSmall, modifier = Modifier.padding(top = 2.dp))
+            hint?.let { Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant) }
+            content()
+        }
     }
 }
 
@@ -305,31 +334,26 @@ private fun RecentImports(log: List<ImportLog>, onOpenStatement: (Long) -> Unit,
                         ym.format(fmt), style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant,
                         modifier = Modifier.padding(start = 16.dp, top = 10.dp, bottom = 2.dp),
                     )
-                    list.forEach { e ->
+                    list.forEachIndexed { i, e ->
                         val sid = e.statementId
-                        Row(
-                            Modifier.fillMaxWidth()
-                                .then(if (sid != null) Modifier.clickable { onOpenStatement(sid) } else Modifier)
-                                .heightIn(min = 60.dp).padding(horizontal = 16.dp, vertical = 8.dp),
-                            verticalAlignment = Alignment.CenterVertically,
-                        ) {
-                            Column(Modifier.weight(1f)) {
-                                Text(e.subject.ifBlank { "(no subject)" }, style = MaterialTheme.typography.bodyMedium, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                        if (i > 0) RowDivider(inset = false)
+                        ListRow(
+                            icon = null,
+                            title = e.subject.ifBlank { "(no subject)" },
+                            subtitle = Dates.short(Instant.ofEpochMilli(e.receivedAt).atZone(ZoneId.systemDefault()).toLocalDate()) + " · " + e.detail,
+                            onClick = sid?.let { { onOpenStatement(it) } },
+                            action = {
                                 Text(
-                                    Dates.short(Instant.ofEpochMilli(e.receivedAt).atZone(ZoneId.systemDefault()).toLocalDate()) + " · " + e.detail,
-                                    style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 2,
+                                    outcomeLabel(e.outcome), style = MaterialTheme.typography.labelMedium,
+                                    color = when (e.outcome) {
+                                        "imported" -> Good; "needs_review" -> Amber
+                                        "duplicate", "dismissed" -> MaterialTheme.colorScheme.onSurfaceVariant
+                                        else -> Danger
+                                    },
+                                    modifier = Modifier.padding(start = 8.dp),
                                 )
-                            }
-                            Spacer(Modifier.width(8.dp))
-                            Text(
-                                outcomeLabel(e.outcome), style = MaterialTheme.typography.labelMedium,
-                                color = when (e.outcome) {
-                                    "imported" -> Good; "needs_review" -> Amber
-                                    "duplicate", "dismissed" -> MaterialTheme.colorScheme.onSurfaceVariant
-                                    else -> Danger
-                                },
-                            )
-                        }
+                            },
+                        )
                     }
                 }
             }

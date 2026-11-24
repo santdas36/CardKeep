@@ -192,8 +192,10 @@ object Appearance {
 fun CardsTheme(content: @Composable () -> Unit) {
     val dark = when (Appearance.mode) { "light" -> false; "dark" -> true; else -> isSystemInDarkTheme() }
     val palette = Palettes.byId(Appearance.paletteId)
+    // Read unconditionally: a composable read only on the wallpaper branch changes this function's shape when
+    // the palette flips, and Compose then rebuilds everything inside the theme (navigation included).
+    val ctx = LocalContext.current
     val scheme = palette.scheme(dark) ?: if (Build.VERSION.SDK_INT >= 31) {
-        val ctx = LocalContext.current
         if (dark) dynamicDarkColorScheme(ctx) else dynamicLightColorScheme(ctx)
     } else Palettes.all.first().scheme(dark)!!
     // Status/nav bar icons follow the app's mode, not the system's (they differ when forced light/dark).

@@ -223,6 +223,7 @@ class MainActivity : FragmentActivity() {
                                             deviceSecure = deviceSecure,
                                             onOpen = { nav.navigate("card/$it") },
                                             onAdd = { nav.navigate("edit/0") },
+                                            onAddWith = { start -> nav.navigate(start?.let { "edit/0?start=$it" } ?: "edit/0") },
                                             onEdit = { nav.navigate("edit/$it") },
                                             onLock = { locked = true },
                                             onSettings = { nav.navigate("settings") },

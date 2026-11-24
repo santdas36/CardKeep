@@ -10,21 +10,30 @@ import android.provider.Settings
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.animateDpAsState
-import androidx.compose.foundation.Image
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ColumnScope
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.systemBarsPadding
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.requiredWidth
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.rememberScrollState
@@ -32,24 +41,27 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.automirrored.filled.ArrowForward
+import androidx.compose.material.icons.outlined.Add
 import androidx.compose.material.icons.outlined.Alarm
 import androidx.compose.material.icons.outlined.BatteryChargingFull
 import androidx.compose.material.icons.outlined.CloudDownload
+import androidx.compose.material.icons.outlined.CloudOff
+import androidx.compose.material.icons.outlined.CreditCard
 import androidx.compose.material.icons.outlined.DocumentScanner
 import androidx.compose.material.icons.outlined.Keyboard
 import androidx.compose.material.icons.outlined.Lock
 import androidx.compose.material.icons.outlined.Nfc
 import androidx.compose.material.icons.outlined.NotificationsNone
-import androidx.compose.material.icons.outlined.PhoneAndroid
+import androidx.compose.material.icons.outlined.PersonOff
 import androidx.compose.material3.Button
-import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.remember
@@ -57,13 +69,26 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.PathEffect
+import androidx.compose.ui.geometry.CornerRadius
+import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.foundation.layout.BoxWithConstraints
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import androidx.compose.ui.util.lerp
 import androidx.core.content.ContextCompat
-import androidx.core.graphics.drawable.toBitmap
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LifecycleEventEffect
 import app.cardkeep.data.Prefs
@@ -81,17 +106,21 @@ private const val PAGES = 3
 
 /**
  * First run: what the app is, the permissions reminders need, then add a first card or restore a backup.
- * Same parts as everywhere else (Panel + ListRow); one button at the bottom; swipe or Continue between pages.
+ * Each page is a picture (hero), a title and one line, then its controls. Dots and an arrow at the bottom.
  */
 @Composable
 fun OnboardingScreen(prefs: Prefs, onExit: (OnboardingExit) -> Unit) {
     val pager = rememberPagerState { PAGES }
     val scope = rememberCoroutineScope()
     val restore = rememberRestoreBackup { onExit(OnboardingExit.Later) }
+    val last = pager.currentPage == PAGES - 1
     BackHandler(pager.currentPage > 0) { scope.launch { pager.animateScrollToPage(pager.currentPage - 1) } }
 
     Surface(Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.surface) {
         Column(Modifier.fillMaxSize().systemBarsPadding()) {
+            Box(Modifier.fillMaxWidth().height(48.dp).padding(horizontal = 8.dp), contentAlignment = Alignment.CenterEnd) {
+                if (!last) TextButton(onClick = { onExit(OnboardingExit.Later) }) { Text("Skip", color = MaterialTheme.colorScheme.onSurfaceVariant) }
+            }
             HorizontalPager(pager, Modifier.weight(1f).fillMaxWidth()) { page ->
                 when (page) {
                     0 -> WelcomePage()
@@ -99,58 +128,146 @@ fun OnboardingScreen(prefs: Prefs, onExit: (OnboardingExit) -> Unit) {
                     else -> FirstCardPage(onAdd = { onExit(OnboardingExit.AddCard(it)) }, onRestore = restore)
                 }
             }
-            Column(Modifier.fillMaxWidth().padding(horizontal = Gutter).padding(top = 8.dp, bottom = 16.dp)) {
-                PageDots(pager.currentPage, Modifier.align(Alignment.CenterHorizontally))
-                Spacer(Modifier.height(20.dp))
-                val last = pager.currentPage == PAGES - 1
-                val modifier = Modifier.fillMaxWidth().height(52.dp)
+            Row(
+                Modifier.fillMaxWidth().height(88.dp).padding(horizontal = 24.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                PageDots(pager.currentPage)
+                Spacer(Modifier.weight(1f))
                 if (last) {
-                    FilledTonalButton(onClick = { onExit(OnboardingExit.Later) }, modifier) { Text("Not now") }
+                    TextButton(onClick = { onExit(OnboardingExit.Later) }) { Text("Later") }
                 } else {
-                    Button(onClick = { scope.launch { pager.animateScrollToPage(pager.currentPage + 1) } }, modifier) { Text("Continue") }
+                    Surface(
+                        onClick = { scope.launch { pager.animateScrollToPage(pager.currentPage + 1) } },
+                        shape = RoundedCornerShape(20.dp), color = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.size(56.dp),
+                    ) {
+                        Box(contentAlignment = Alignment.Center) {
+                            Icon(Icons.AutoMirrored.Filled.ArrowForward, "Next", tint = MaterialTheme.colorScheme.onPrimary)
+                        }
+                    }
                 }
             }
         }
     }
 }
 
-/** One page: a leading visual, a title, a line of text, then the page's rows. Scrolls on small screens. */
+/** One page: hero on top, then a big title, one line of text and the page's controls. Scrolls on small screens. */
 @Composable
-private fun Page(lead: @Composable () -> Unit, title: String, body: String, content: @Composable () -> Unit) {
-    Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(horizontal = Gutter).padding(top = 48.dp, bottom = 16.dp)) {
-        lead()
-        Spacer(Modifier.height(24.dp))
-        Text(title, style = MaterialTheme.typography.headlineMedium)
-        Spacer(Modifier.height(8.dp))
+private fun Page(hero: @Composable () -> Unit, title: String, body: String, content: @Composable ColumnScope.() -> Unit = {}) {
+    Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(horizontal = 24.dp)) {
+        Box(Modifier.fillMaxWidth().height(300.dp), contentAlignment = Alignment.Center) { hero() }
+        Spacer(Modifier.height(12.dp))
+        Text(title, style = MaterialTheme.typography.headlineMedium.copy(fontWeight = FontWeight.SemiBold, lineHeight = 36.sp))
+        Spacer(Modifier.height(10.dp))
         Text(body, style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
-        Spacer(Modifier.height(28.dp))
+        Spacer(Modifier.height(22.dp))
         content()
+        Spacer(Modifier.height(8.dp))
     }
 }
 
-/** The page's icon in the same tinted circle as list rows, only bigger. */
-@Composable
-private fun LeadIcon(icon: ImageVector) = Box(
-    Modifier.size(64.dp).clip(CircleShape).background(MaterialTheme.colorScheme.primary.copy(alpha = 0.14f)),
-    contentAlignment = Alignment.Center,
-) { Icon(icon, null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(30.dp)) }
+// ---------- Welcome ----------
 
+/**
+ * Three big plain-gradient cards, fanned and spilling past the edges (a picture, not real card art).
+ * They settle into the fan once when the page first shows.
+ */
+@Composable
+private fun CardFan() {
+    val settle = remember { Animatable(0f) }
+    LaunchedEffect(Unit) { settle.animateTo(1f, tween(300, easing = FastOutSlowInEasing)) }
+    // Back to front, as in the mockup: colours, rotation, and offset (in the card's own rotated frame, like
+    // CSS "rotate() translate()") as a fraction of the card width.
+    val cards = listOf(
+        FanCard(listOf(Color(0xFF2C5BD9), Color(0xFF7B5CFF)), -12f, -26f / 190, -14f / 190),
+        FanCard(listOf(Color(0xFFF2B84B), Color(0xFFE5683F)), -3f, 4f / 190, 6f / 190),
+        FanCard(listOf(Color(0xFF1A1A1A), Color(0xFF3D3D46)), 7f, 30f / 190, 26f / 190),
+    )
+    BoxWithConstraints(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+        // Slightly wider than the text column, so the fan spills past the edges.
+        val w = maxWidth * 1.05f
+        val shape = RoundedCornerShape(w * (14f / 190))
+        cards.forEachIndexed { i, c ->
+            val p = settle.value
+            Box(
+                Modifier.requiredWidth(w).aspectRatio(190f / 120f)
+                    .graphicsLayer {
+                        val a = Math.toRadians(c.rotation.toDouble())
+                        val dx = c.x * w.toPx()
+                        val dy = c.y * w.toPx()
+                        rotationZ = lerp(0f, c.rotation, p)
+                        translationX = lerp(0f, (dx * kotlin.math.cos(a) - dy * kotlin.math.sin(a)).toFloat(), p)
+                        translationY = lerp(0f, (dx * kotlin.math.sin(a) + dy * kotlin.math.cos(a)).toFloat(), p)
+                    }
+                    .shadow(16.dp, shape, ambientColor = Color.Black, spotColor = Color.Black)
+                    .background(Brush.linearGradient(c.colors), shape),
+            ) {
+                if (i == cards.lastIndex) {
+                    Text(
+                        "••••  4821", color = Color(0xFFDDDDDD), letterSpacing = 2.sp,
+                        style = MaterialTheme.typography.bodyMedium,
+                        modifier = Modifier.align(Alignment.BottomStart).padding(start = w * (16f / 190), bottom = w * (14f / 190)),
+                    )
+                }
+            }
+        }
+    }
+}
+
+private class FanCard(val colors: List<Color>, val rotation: Float, val x: Float, val y: Float)
+
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun WelcomePage() {
-    val context = LocalContext.current
-    val icon = remember { context.packageManager.getApplicationIcon(context.applicationInfo).toBitmap(256, 256).asImageBitmap() }
-    Page(
-        lead = { Image(icon, null, Modifier.size(72.dp).clip(RoundedCornerShape(20.dp))) },
-        title = "Cards",
-        body = "Your cards and due dates, kept on this phone.",
-    ) {
-        Panel(padded = false) {
-            ListRow(Icons.Outlined.Lock, "Encrypted", "Card details open only with your fingerprint or PIN.")
-            RowDivider()
-            ListRow(Icons.Outlined.PhoneAndroid, "Stays on this phone", "No account, no cloud, no analytics.")
-            RowDivider()
-            ListRow(Icons.Outlined.NotificationsNone, "Reminders", "A nudge a few days before each bill is due.")
+    Page(hero = { CardFan() }, title = "All your cards.\nOnly on your phone.", body = "Card details, due dates and statements, without an account.") {
+        FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Chip(Icons.Outlined.Lock, "Encrypted")
+            Chip(Icons.Outlined.CloudOff, "Offline")
+            Chip(Icons.Outlined.PersonOff, "No account")
         }
+    }
+}
+
+@Composable
+private fun Chip(icon: ImageVector, text: String) {
+    Row(
+        Modifier.clip(CircleShape).background(MaterialTheme.colorScheme.surfaceContainerHigh).padding(horizontal = 12.dp, vertical = 8.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Icon(icon, null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(16.dp))
+        Spacer(Modifier.width(6.dp))
+        Text(text, style = MaterialTheme.typography.labelLarge)
+    }
+}
+
+// ---------- Reminders ----------
+
+/** What a reminder looks like: one notification, and a quieter one behind it. */
+@Composable
+private fun ReminderPreview() {
+    Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        Row(
+            Modifier.fillMaxWidth(0.94f).shadow(12.dp, RoundedCornerShape(20.dp)).clip(RoundedCornerShape(20.dp))
+                .background(MaterialTheme.colorScheme.surfaceContainerHigh).padding(14.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Box(
+                Modifier.size(36.dp).clip(RoundedCornerShape(11.dp)).background(MaterialTheme.colorScheme.primary),
+                contentAlignment = Alignment.Center,
+            ) { Icon(Icons.Outlined.CreditCard, null, tint = MaterialTheme.colorScheme.onPrimary, modifier = Modifier.size(20.dp)) }
+            Column(Modifier.weight(1f).padding(horizontal = 12.dp)) {
+                Text("Regalia Gold due in 2 days", style = MaterialTheme.typography.bodyMedium)
+                Text("₹18,420 · HDFC Bank ••4821", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+            Text("9:00", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        }
+        Text(
+            "Atlas due tomorrow · ₹32,960",
+            style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.fillMaxWidth(0.86f).alpha(0.7f).clip(RoundedCornerShape(18.dp))
+                .background(MaterialTheme.colorScheme.surfaceContainer).padding(horizontal = 14.dp, vertical = 12.dp),
+        )
     }
 }
 
@@ -164,13 +281,9 @@ private fun RemindersPage(prefs: Prefs) {
     val battery = remember(tick) { context.getSystemService(PowerManager::class.java).isIgnoringBatteryOptimizations(context.packageName) }
     val askNotif = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { tick++ }
 
-    Page(
-        lead = { LeadIcon(Icons.Outlined.NotificationsNone) },
-        title = "Reminders",
-        body = "Cards reminds you at 9 am a few days before each due date. Allow these so reminders arrive on time.",
-    ) {
-        Panel(padded = false) {
-            PermissionRow(Icons.Outlined.NotificationsNone, "Notifications", "To show the reminder", notif) {
+    Page(hero = { ReminderPreview() }, title = "Never miss a due date", body = "A reminder at 9 am, a few days before each bill.") {
+        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            PermissionRow(Icons.Outlined.NotificationsNone, "Notifications", notif) {
                 val canAsk = Build.VERSION.SDK_INT >= 33 && !prefs.askedNotifications &&
                     ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED
                 if (canAsk) {
@@ -181,66 +294,98 @@ private fun RemindersPage(prefs: Prefs) {
                     openSystemSettings(context, Intent(Settings.ACTION_APP_NOTIFICATION_SETTINGS).putExtra(Settings.EXTRA_APP_PACKAGE, context.packageName))
                 }
             }
-            RowDivider()
-            PermissionRow(Icons.Outlined.Alarm, "Exact alarms", "So reminders aren't late", exact) {
+            PermissionRow(Icons.Outlined.Alarm, "Exact alarms", exact) {
                 if (Build.VERSION.SDK_INT >= 31) {
                     openSystemSettings(context, Intent(Settings.ACTION_REQUEST_SCHEDULE_EXACT_ALARM, Uri.parse("package:${context.packageName}")))
                 }
             }
-            RowDivider()
-            PermissionRow(Icons.Outlined.BatteryChargingFull, "Battery", "Set Cards to unrestricted; some phones drop alarms", battery) {
-                openSystemSettings(context, Intent(Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS))
-            }
+            PermissionRow(Icons.Outlined.BatteryChargingFull, "Run in background", battery) { requestBatteryExemption(context) }
         }
     }
 }
 
-/** A check once allowed; until then the row (and its Allow button) opens the way to allow it. */
+/** A rounded row: icon, name, then an Allow pill, or a quiet "Allowed" once it is. */
 @Composable
-private fun PermissionRow(icon: ImageVector, title: String, subtitle: String, allowed: Boolean, onAllow: () -> Unit) {
-    ListRow(
-        icon, title, subtitle,
-        onClick = if (allowed) null else onAllow,
-        action = {
-            if (allowed) Icon(Icons.Filled.CheckCircle, "Allowed", tint = Good)
-            else TextButton(onClick = onAllow) { Text("Allow") }
+private fun PermissionRow(icon: ImageVector, title: String, allowed: Boolean, onAllow: () -> Unit) {
+    Row(
+        Modifier.fillMaxWidth().heightIn(min = 56.dp).clip(RoundedCornerShape(18.dp))
+            .background(MaterialTheme.colorScheme.surfaceContainerHigh).padding(start = 16.dp, end = 10.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Icon(icon, null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(20.dp))
+        Text(title, style = MaterialTheme.typography.bodyLarge, modifier = Modifier.weight(1f).padding(start = 14.dp))
+        if (allowed) {
+            Text(
+                "Allowed", style = MaterialTheme.typography.labelLarge, color = Good,
+                modifier = Modifier.clip(CircleShape).background(Good.copy(alpha = 0.14f)).padding(horizontal = 12.dp, vertical = 7.dp),
+            )
+        } else {
+            Button(onClick = onAllow, contentPadding = PaddingValues(horizontal = 16.dp), modifier = Modifier.height(34.dp)) { Text("Allow") }
+        }
+    }
+}
+
+// ---------- First card ----------
+
+/** An empty card slot (dashed outline and a plus), waiting for the first card. Also on the empty Home. */
+@Composable
+internal fun EmptyCardSlot(modifier: Modifier = Modifier) {
+    val line = MaterialTheme.colorScheme.outlineVariant
+    Box(
+        modifier.aspectRatio(CARD_RATIO).drawBehind {
+            val stroke = 2.dp.toPx()
+            drawRoundRect(
+                line, topLeft = Offset(stroke / 2, stroke / 2), size = Size(size.width - stroke, size.height - stroke),
+                cornerRadius = CornerRadius(18.dp.toPx()),
+                style = Stroke(stroke, pathEffect = PathEffect.dashPathEffect(floatArrayOf(10.dp.toPx(), 7.dp.toPx()))),
+            )
         },
-    )
+        contentAlignment = Alignment.Center,
+    ) { Icon(Icons.Outlined.Add, null, tint = MaterialTheme.colorScheme.outline, modifier = Modifier.size(30.dp)) }
 }
 
 @Composable
 private fun FirstCardPage(onAdd: (String?) -> Unit, onRestore: () -> Unit) {
-    val nfc = nfcAvailable()
-    Page(
-        lead = { LeadIcon(Icons.Outlined.DocumentScanner) },
-        title = "Add your first card",
-        body = "The bank, network and card type are filled in for you.",
-    ) {
-        Panel(padded = false) {
-            ListRow(Icons.Outlined.DocumentScanner, "Scan", "Point the camera at the card", chevron = true, onClick = { onAdd("scan") })
-            if (nfc) {
-                RowDivider()
-                ListRow(Icons.Outlined.Nfc, "Tap", "Hold the card to the back of the phone", chevron = true, onClick = { onAdd("tap") })
-            }
-            RowDivider()
-            ListRow(Icons.Outlined.Keyboard, "Type it in", "Enter the details yourself", chevron = true, onClick = { onAdd(null) })
-        }
+    Page(hero = { EmptyCardSlot(Modifier.width(200.dp)) }, title = "Add your first card", body = "Bank, network and type fill in on their own.") {
+        AddCardTiles(onAdd)
         Spacer(Modifier.height(12.dp))
-        Panel(padded = false) {
-            ListRow(
-                Icons.Outlined.CloudDownload, "Restore a backup", "From a Cards backup file",
-                iconTint = MaterialTheme.colorScheme.onSurfaceVariant, chevron = true, onClick = onRestore,
-            )
+        TextButton(onClick = onRestore, modifier = Modifier.align(Alignment.CenterHorizontally)) {
+            Icon(Icons.Outlined.CloudDownload, null, modifier = Modifier.size(18.dp))
+            Spacer(Modifier.width(8.dp))
+            Text("Restore from a backup")
+        }
+    }
+}
+
+/** Scan / Tap / Type, side by side. [onAdd] gets "scan", "tap" or null (type it in). Tap only with NFC. */
+@Composable
+internal fun AddCardTiles(onAdd: (String?) -> Unit) {
+    val nfc = nfcAvailable()
+    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        AddTile(Icons.Outlined.DocumentScanner, "Scan", "Camera", Modifier.weight(1f)) { onAdd("scan") }
+        if (nfc) AddTile(Icons.Outlined.Nfc, "Tap", "NFC", Modifier.weight(1f)) { onAdd("tap") }
+        AddTile(Icons.Outlined.Keyboard, "Type", "By hand", Modifier.weight(1f)) { onAdd(null) }
+    }
+}
+
+@Composable
+private fun AddTile(icon: ImageVector, title: String, caption: String, modifier: Modifier, onClick: () -> Unit) {
+    Surface(onClick = onClick, shape = RoundedCornerShape(22.dp), color = MaterialTheme.colorScheme.surfaceContainerHigh, modifier = modifier) {
+        Column(Modifier.padding(vertical = 18.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+            Icon(icon, null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(28.dp))
+            Spacer(Modifier.height(10.dp))
+            Text(title, style = MaterialTheme.typography.titleSmall)
+            Text(caption, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
     }
 }
 
 @Composable
-private fun PageDots(current: Int, modifier: Modifier = Modifier) {
-    Row(modifier, horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
+private fun PageDots(current: Int) {
+    Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
         repeat(PAGES) { i ->
             val on = i == current
-            val w by animateDpAsState(if (on) 20.dp else 6.dp, label = "dot")
+            val w by animateDpAsState(if (on) 22.dp else 6.dp, label = "dot")
             Box(
                 Modifier.height(6.dp).width(w).clip(CircleShape)
                     .background(if (on) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outlineVariant),

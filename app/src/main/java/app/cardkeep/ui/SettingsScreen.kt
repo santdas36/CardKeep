@@ -152,6 +152,17 @@ internal fun openSystemSettings(context: android.content.Context, intent: Intent
         .onFailure { runCatching { context.startActivity(Intent(Settings.ACTION_SETTINGS)) } }
 }
 
+/**
+ * Asks Android directly for this app ("Let Cards always run in the background?"). Where a phone doesn't
+ * have that prompt, opens the app's own settings page instead of the full battery list.
+ */
+@android.annotation.SuppressLint("BatteryLife")
+internal fun requestBatteryExemption(context: android.content.Context) {
+    val pkg = Uri.parse("package:${context.packageName}")
+    runCatching { context.startActivity(Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS, pkg)) }
+        .onFailure { openSystemSettings(context, Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, pkg)) }
+}
+
 /** One green line while everything is fine; only the failing checks (tap to fix) when something isn't. */
 @Composable
 private fun ReminderHealth(tick: Int) {
@@ -181,8 +192,8 @@ private fun ReminderHealth(tick: Int) {
         }
         if (!battery) {
             if (!notif || !exact) RowDivider()
-            Health("Battery optimised", "Some phones drop alarms. Tap and set Cards to unrestricted.") {
-                openSystemSettings(context, Intent(Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS))
+            Health("Battery optimised", "Some phones drop alarms. Tap to let Cards run in the background.") {
+                requestBatteryExemption(context)
             }
         }
     }

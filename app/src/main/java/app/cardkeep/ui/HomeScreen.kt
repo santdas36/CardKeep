@@ -118,6 +118,8 @@ fun HomeScreen(
     deviceSecure: Boolean,
     onOpen: (Long) -> Unit,
     onAdd: () -> Unit,
+    /** Add with a start: "scan", "tap" or null (type it in). */
+    onAddWith: (String?) -> Unit = { onAdd() },
     onEdit: (Long) -> Unit,
     onLock: () -> Unit,
     onSettings: () -> Unit,
@@ -188,20 +190,23 @@ fun HomeScreen(
         Box(Modifier.fillMaxSize().padding(top = pad.calculateTopPadding())) {
             when {
                 cards == null -> {}
+                // Same empty slot and Scan / Tap / Type tiles as the last onboarding page.
                 cards.isEmpty() -> Column(
-                    Modifier.fillMaxSize().padding(24.dp),
+                    Modifier.fillMaxSize().padding(horizontal = 24.dp).padding(bottom = FloatingBarClearance),
                     verticalArrangement = Arrangement.Center,
                     horizontalAlignment = Alignment.CenterHorizontally,
                 ) {
                     if (!deviceSecure) LockWarning()
+                    EmptyCardSlot(Modifier.fillMaxWidth(0.62f))
+                    Spacer(Modifier.height(28.dp))
                     Text("No cards yet", style = MaterialTheme.typography.headlineSmall)
                     Spacer(Modifier.height(6.dp))
                     Text(
-                        "Add a card to keep it in your stack.",
+                        "Add one to start tracking dues.",
                         style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
-                    Spacer(Modifier.height(20.dp))
-                    Button(onClick = onAdd) { Text("Add your first card") }
+                    Spacer(Modifier.height(24.dp))
+                    AddCardTiles(onAddWith)
                 }
                 else -> BoxWithConstraints(Modifier.fillMaxSize()) {
                   val viewport = maxHeight

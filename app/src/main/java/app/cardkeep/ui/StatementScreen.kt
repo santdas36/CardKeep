@@ -1,6 +1,9 @@
 package app.cardkeep.ui
 
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.expandVertically
+import androidx.compose.animation.shrinkVertically
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -61,6 +64,7 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.input.KeyboardType
@@ -259,53 +263,60 @@ private fun StatementPage(
 
     LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(16.dp, 8.dp, 16.dp, 32.dp)) {
         item {
-            // Amount, due, status, and the one action you came for.
+            // One summary card: what's due and by when, then the three numbers behind it.
             Panel {
-                Column {
-                    Text("Total due", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    Text(st.totalDuePaise?.let { Money.inr(it, true) } ?: "—", style = MaterialTheme.typography.headlineLarge.tabular)
-                    Text(
-                        listOfNotNull(
-                            st.dueEpochDay?.let { "Due ${Dates.long(LocalDate.ofEpochDay(it))}" },
-                            st.minDuePaise?.let { "Minimum ${Money.inr(it, true)}" },
-                        ).joinToString(" · "),
-                        style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                    Spacer(Modifier.height(10.dp))
-                    FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                        StatusChip(st, paidSum)
-                        if (diff != null || st.openingPaise == null) {
-                            val ok = diff != null && abs(diff) <= 100
-                            StatusPill(
-                                if (ok) "✓ Adds up" else if (diff == null) "Opening balance missing" else "Off by ${Money.inr(abs(diff), true)}",
-                                if (ok) Good else Amber,
-                            ) { showMath = !showMath }
-                        }
-                    }
-                    if (!review && st.note.isNotBlank() && st.note != "Accepted after review") {
-                        Text(
-                            st.note, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            modifier = Modifier.padding(top = 8.dp),
-                        )
-                    }
-                    AnimatedVisibility(showMath) {
-                        Column(Modifier.padding(top = 10.dp)) {
-                            KeyValue("Statement date", Dates.long(LocalDate.ofEpochDay(st.statementEpochDay)))
-                            st.periodStartEpochDay?.let { KeyValue("Period from", Dates.long(LocalDate.ofEpochDay(it))) }
-                            KeyValue("Opening balance", st.openingPaise?.let { Money.inr(it, true) } ?: "not found")
-                            KeyValue("+ Spends and fees", Money.inr(st.debitsPaise, true))
-                            KeyValue("− Payments and credits", Money.inr(st.creditsPaise, true))
-                            computed?.let { KeyValue("= Works out to", Money.inr(it, true), if (diff != null && abs(diff) <= 100) Good else Danger) }
-                            InlineAction("Edit totals", onEditTotals)
-                        }
-                    }
-                    val canPay = !review && st.dueEpochDay != null && (if ((st.totalDuePaise ?: 0) > 0) paidSum < (st.totalDuePaise ?: 0) else paid.isEmpty())
-                    if (canPay) {
-                        Spacer(Modifier.height(12.dp))
-                        Button(onClick = { paying = true }, modifier = Modifier.fillMaxWidth()) {
-                            Icon(Icons.Filled.Check, null, Modifier.size(18.dp)); Text(if (paidSum > 0) "  Add another payment" else if ((st.totalDuePaise ?: 0) <= 0) "  Mark as settled" else "  Mark as paid")
-                        }
-                    }
+                Text(
+                    "Total due" + (st.dueEpochDay?.let { " · by ${Dates.short(LocalDate.ofEpochDay(it))}" } ?: ""),
+                    style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                Text(st.totalDuePaise?.let { Money.inr(it, true) } ?: "—", style = MaterialTheme.typography.headlineMedium.tabular)
+                Spacer(Modifier.height(14.dp))
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    SummaryTile("Minimum", st.minDuePaise?.let { Money.inr(it, true) } ?: "—", Modifier.weight(1f))
+                    SummaryTile("Spends", Money.inr(st.debitsPaise, true), Modifier.weight(1f))
+                    SummaryTile("Credits", Money.inr(st.creditsPaise, true), Modifier.weight(1f), valueColor = Good)
+                }
+            }
+
+            // Status, whether it adds up (tap for the working), and rewards: all pills, one row.
+            val unit = st.rewardUnit ?: "points"
+            val rewards = listOfNotNull(
+                st.rewardPointsEarned?.let { "+%,d $unit".format(it) },
+                st.rewardPointsBalance?.let { "%,d $unit balance".format(it) },
+                st.cashbackPaise?.let { "${Money.inr(it, true)} cashback" },
+            )
+            FlowRow(Modifier.padding(top = 12.dp), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                StatusChip(st, paidSum)
+                if (diff != null || st.openingPaise == null) {
+                    val ok = diff != null && abs(diff) <= 100
+                    StatusPill(
+                        if (ok) "✓ Adds up" else if (diff == null) "Opening balance missing" else "Off by ${Money.inr(abs(diff), true)}",
+                        if (ok) Good else Amber,
+                    ) { showMath = !showMath }
+                }
+                rewards.forEach { StatusPill(it, Good) }
+            }
+            if (!review && st.note.isNotBlank() && st.note != "Accepted after review") {
+                Text(
+                    st.note, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(start = 4.dp, end = 4.dp, top = 8.dp),
+                )
+            }
+            AnimatedVisibility(showMath, enter = expandVertically(), exit = shrinkVertically()) {
+                Panel(Modifier.padding(top = 12.dp)) {
+                    KeyValue("Statement date", Dates.long(LocalDate.ofEpochDay(st.statementEpochDay)))
+                    st.periodStartEpochDay?.let { KeyValue("Period from", Dates.long(LocalDate.ofEpochDay(it))) }
+                    KeyValue("Opening balance", st.openingPaise?.let { Money.inr(it, true) } ?: "not found")
+                    KeyValue("+ Spends and fees", Money.inr(st.debitsPaise, true))
+                    KeyValue("− Payments and credits", Money.inr(st.creditsPaise, true))
+                    computed?.let { KeyValue("= Works out to", Money.inr(it, true), if (diff != null && abs(diff) <= 100) Good else Danger) }
+                    InlineAction("Edit totals", onEditTotals)
+                }
+            }
+            val canPay = !review && st.dueEpochDay != null && (if ((st.totalDuePaise ?: 0) > 0) paidSum < (st.totalDuePaise ?: 0) else paid.isEmpty())
+            if (canPay) {
+                Button(onClick = { paying = true }, modifier = Modifier.fillMaxWidth().padding(top = 12.dp).height(48.dp)) {
+                    Icon(Icons.Filled.Check, null, Modifier.size(18.dp)); Text(if (paidSum > 0) "  Add another payment" else if ((st.totalDuePaise ?: 0) <= 0) "  Mark as settled" else "  Mark as paid")
                 }
             }
 
@@ -326,19 +337,6 @@ private fun StatementPage(
                         }
                         if (nextReview != null) FilledTonalButton(onClick = onNext) { Text("Next") }
                     }
-                }
-            }
-
-            // Rewards for this cycle.
-            val unit = st.rewardUnit ?: "points"
-            val rewards = listOfNotNull(
-                st.rewardPointsEarned?.let { "+%,d $unit".format(it) },
-                st.rewardPointsBalance?.let { "%,d $unit balance".format(it) },
-                st.cashbackPaise?.let { "${Money.inr(it, true)} cashback" },
-            )
-            if (rewards.isNotEmpty()) {
-                FlowRow(Modifier.padding(top = 12.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    rewards.forEach { StatusPill(it, Good) }
                 }
             }
         }
@@ -399,6 +397,18 @@ private fun StatementPage(
             onDismiss = { paying = false },
             onConfirm = { amt -> paying = false; scope.launch { repo.markPaid(st.cardId, st.dueEpochDay, amt) } },
         )
+    }
+}
+
+/** Small label + value tile inside the summary card. */
+@Composable
+private fun SummaryTile(label: String, value: String, modifier: Modifier = Modifier, valueColor: Color = MaterialTheme.colorScheme.onSurface) {
+    Column(
+        modifier.clip(RoundedCornerShape(12.dp)).background(MaterialTheme.colorScheme.surfaceContainerHighest)
+            .padding(horizontal = 12.dp, vertical = 10.dp),
+    ) {
+        Text(label, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1)
+        Text(value, style = MaterialTheme.typography.titleSmall.tabular, color = valueColor, maxLines = 1, overflow = TextOverflow.Ellipsis)
     }
 }
 
