@@ -24,6 +24,10 @@ import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material.icons.outlined.Archive
 import androidx.compose.material.icons.outlined.CreditCard
 import androidx.compose.material.icons.outlined.Lock
+import androidx.compose.material.icons.outlined.Storage
+import androidx.compose.material.icons.outlined.Gavel
+import androidx.compose.material.icons.outlined.Code
+import androidx.compose.material.icons.outlined.Info
 import androidx.compose.material.icons.outlined.Mail
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
@@ -125,17 +129,24 @@ fun SettingsScreen(prefs: Prefs, onMail: () -> Unit, onPasswords: () -> Unit = {
             }
 
             SectionHeader("About")
-            Panel {
-                Text(
-                    "Cards ${remember { context.packageManager.getPackageInfo(context.packageName, 0).versionName }}. Everything stays on this phone. The only network use is reading statement emails from your own mailbox. No analytics, no cloud; backups are encrypted files you keep.",
-                    style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant,
+            Panel(padded = false) {
+                val version = remember { context.packageManager.getPackageInfo(context.packageName, 0).versionName }
+                ListRow(Icons.Outlined.Info, "Cards", "Version $version")
+                RowDivider()
+                ListRow(
+                    Icons.Outlined.Code, "Source code", "github.com/santdas36/CardKeep", chevron = true,
+                    onClick = { runCatching { context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("https://github.com/santdas36/CardKeep"))) } },
                 )
-                Text(
-                    "Card BIN data: adapted from binlist-data by Ian Nuttall (github.com/iannuttall/binlist-data) and bin-list-data by Venelin Kochev (github.com/venelinkochev/bin-list-data), both licensed CC BY 4.0.",
-                    style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.padding(top = 8.dp),
-                )
+                RowDivider()
+                ListRow(Icons.Outlined.Gavel, "Licence", "GPL-3.0")
+                RowDivider()
+                ListRow(Icons.Outlined.Storage, "Card BIN data", "binlist-data by Ian Nuttall and bin-list-data by Venelin Kochev, CC BY 4.0")
             }
+            Text(
+                "Everything stays on this phone. The only network use is reading statement emails from your own mailbox.",
+                style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(horizontal = 4.dp, vertical = 12.dp),
+            )
         }
     }
 }
