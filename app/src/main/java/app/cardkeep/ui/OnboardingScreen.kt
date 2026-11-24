@@ -79,6 +79,7 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
@@ -155,7 +156,8 @@ fun OnboardingScreen(prefs: Prefs, onExit: (OnboardingExit) -> Unit) {
 /** One page: hero on top, then a big title, one line of text and the page's controls. Scrolls on small screens. */
 @Composable
 private fun Page(hero: @Composable () -> Unit, title: String, body: String, content: @Composable ColumnScope.() -> Unit = {}) {
-    Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(horizontal = 24.dp)) {
+    // Clipped to the page, so a hero that spills sideways doesn't draw over the next page mid-swipe.
+    Column(Modifier.fillMaxSize().clipToBounds().verticalScroll(rememberScrollState()).padding(horizontal = 24.dp)) {
         Box(Modifier.fillMaxWidth().height(300.dp), contentAlignment = Alignment.Center) { hero() }
         Spacer(Modifier.height(12.dp))
         Text(title, style = MaterialTheme.typography.headlineMedium.copy(fontWeight = FontWeight.SemiBold, lineHeight = 36.sp))
@@ -185,8 +187,9 @@ private fun CardFan() {
         FanCard(listOf(Color(0xFF1A1A1A), Color(0xFF3D3D46)), 7f, 30f / 190, 26f / 190),
     )
     BoxWithConstraints(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-        // Slightly wider than the text column, so the fan spills past the edges.
-        val w = maxWidth * 1.05f
+        // As big as fits: the tilted, offset fan is about 1.4 card-widths wide and 1.0 tall. It may spill into
+        // the page's side padding (24dp each side) but not past the page, so a swipe never cuts a card off.
+        val w = minOf((maxWidth + 48.dp) / 1.42f, maxHeight / 1.0f)
         val shape = RoundedCornerShape(w * (14f / 190))
         cards.forEachIndexed { i, c ->
             val p = settle.value
@@ -226,6 +229,11 @@ private fun WelcomePage() {
             Chip(Icons.Outlined.CloudOff, "Offline")
             Chip(Icons.Outlined.PersonOff, "No account")
         }
+        Spacer(Modifier.height(20.dp))
+        Text(
+            "Turning off the screen lock erases saved card numbers. Keep a backup.",
+            style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
     }
 }
 
