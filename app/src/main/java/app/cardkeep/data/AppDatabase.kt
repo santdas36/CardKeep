@@ -25,10 +25,13 @@ abstract class AppDatabase : RoomDatabase() {
     abstract fun backup(): BackupDao
 
     companion object {
+        /** Database file name (kept from the app's old name, so existing data is found). */
+        const val FILE = "duely.db"
+
         /** Opens the SQLCipher database. [passphrase] comes from [app.cardkeep.security.DbKey]. */
         fun open(context: Context, passphrase: ByteArray): AppDatabase {
             System.loadLibrary("sqlcipher")
-            return Room.databaseBuilder(context, AppDatabase::class.java, "duely.db")
+            return Room.databaseBuilder(context, AppDatabase::class.java, FILE)
                 .openHelperFactory(SupportOpenHelperFactory(passphrase))
                 .addMigrations(Repair(4), Repair(5), V6to7, V7to8, V8to9, V9to10)
                 .build()

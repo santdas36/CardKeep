@@ -94,7 +94,8 @@ class MainActivity : FragmentActivity() {
         Appearance.paletteId = app.prefs.palette
         Appearance.mode = app.prefs.themeMode
         deviceSecure = Auth.deviceSecure(this)
-        locked = deviceSecure
+        // Nothing to protect before the first-run screens are done, so no lock on a fresh install.
+        locked = deviceSecure && app.prefs.onboarded
         // Recreated (rotation, process death): the launch intent was already handled, don't open Add card again.
         handleIntent(intent, shortcuts = savedInstanceState == null)
 
@@ -409,7 +410,7 @@ class MainActivity : FragmentActivity() {
     override fun onStart() {
         super.onStart()
         deviceSecure = Auth.deviceSecure(this)
-        if (!deviceSecure) {
+        if (!deviceSecure || !CardsApp.from(this).prefs.onboarded) {
             locked = false
             return
         }

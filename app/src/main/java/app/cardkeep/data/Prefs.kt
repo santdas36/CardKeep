@@ -25,6 +25,9 @@ class Prefs(context: Context) {
         get() = sp.getBoolean("onboarded", false)
         set(v) = sp.edit { putBoolean("onboarded", v) }
 
+    /** Whether [onboarded] was ever written (it wasn't on installs from before onboarding existed). */
+    val onboardedKnown: Boolean get() = sp.contains("onboarded")
+
     var askedNotifications: Boolean
         get() = sp.getBoolean("asked_notif", false)
         set(v) = sp.edit { putBoolean("asked_notif", v) }

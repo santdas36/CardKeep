@@ -27,6 +27,9 @@ class CardsApp : Application() {
     override fun onCreate() {
         super.onCreate()
         prefs = Prefs(this)
+        // Installs from before onboarding existed: a database already on disk means it isn't a first run.
+        // Checked before the database is opened (opening creates it).
+        if (!prefs.onboardedKnown) prefs.onboarded = getDatabasePath(AppDatabase.FILE).exists()
         db = AppDatabase.open(this, DbKey.passphrase(this))
         repo = Repo(db.dao(), db.ledger(), this)
         Notifications.createChannel(this)
