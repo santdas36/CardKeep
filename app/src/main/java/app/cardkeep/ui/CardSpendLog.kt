@@ -61,10 +61,10 @@ fun CardSpendLog(card: Card, lastStatementDay: Long?, onOpenSpends: () -> Unit) 
     val flagged = mine.filter { SpendReview.flagged(it.review) }
     var showFlagged by remember { mutableStateOf(false) }
 
-    SectionHeader("Spend log")
+    SectionHeader(if (card.isCredit && period.isCycle) "This cycle" else "This month")
     Panel(padded = false) {
         ListRow(
-            Icons.AutoMirrored.Outlined.ReceiptLong, if (card.isCredit && period.isCycle) "This cycle" else "This month",
+            Icons.AutoMirrored.Outlined.ReceiptLong, "Unbilled spends",
             subtitle = "Since ${Dates.short(period.start)}",
             trailing = if (counted.isEmpty()) "No spends yet" else "${Money.inr(spent.coerceAtLeast(0), true)} · ${counted.size}",
             chevron = true, onClick = onOpenSpends,
@@ -100,7 +100,7 @@ private fun FlaggedSheet(spends: List<Spend>, onDismiss: () -> Unit) {
         Column(Modifier.padding(horizontal = 20.dp).padding(bottom = 24.dp).verticalScroll(rememberScrollState())) {
             Text("Needs a look", style = MaterialTheme.typography.titleLarge)
             Text(
-                "These don't agree with the statement. Accept the ones that look right to you.",
+                "These don't agree with the statement. Keep the ones that are right, remove the ones that aren't real spends.",
                 style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.padding(top = 4.dp, bottom = 12.dp),
             )
@@ -120,7 +120,8 @@ private fun FlaggedSheet(spends: List<Spend>, onDismiss: () -> Unit) {
                             spendAmountText(s),
                             style = MaterialTheme.typography.bodyLarge.tabular, modifier = Modifier.padding(horizontal = 8.dp),
                         )
-                        TextButton(onClick = { scope.launch { log.dismiss(s) } }) { Text("Looks fine") }
+                        TextButton(onClick = { scope.launch { log.delete(s) } }) { Text("Remove", color = Danger) }
+                        TextButton(onClick = { scope.launch { log.dismiss(s) } }) { Text("Keep") }
                     }
                 }
             }

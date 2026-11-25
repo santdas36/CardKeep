@@ -289,7 +289,7 @@ private fun SpendInfo(spend: Spend, onLooksFine: () -> Unit) {
                 it, style = MaterialTheme.typography.bodyMedium, color = if (flagged) Amber else MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.padding(top = 6.dp),
             )
-            if (flagged) FilledTonalButton(onClick = onLooksFine, modifier = Modifier.padding(top = 10.dp)) { Text("Looks fine") }
+            if (flagged) FilledTonalButton(onClick = onLooksFine, modifier = Modifier.padding(top = 10.dp)) { Text("Keep as is") }
         }
     }
 }
