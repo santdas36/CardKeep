@@ -13,9 +13,9 @@ import net.zetetic.database.sqlcipher.SupportOpenHelperFactory
     entities = [
         Card::class, CardSecret::class, Payment::class,
         Statement::class, Txn::class, Category::class, CategoryRule::class, MailSource::class, ImportLog::class, PendingPdf::class, SenderCard::class,
-        HolderName::class,
+        HolderName::class, Spend::class, AlertMiss::class,
     ],
-    version = 10,
+    version = 11,
     exportSchema = true,
     autoMigrations = [AutoMigration(from = 1, to = 2), AutoMigration(from = 2, to = 3), AutoMigration(from = 3, to = 4)],
 )
@@ -23,6 +23,7 @@ abstract class AppDatabase : RoomDatabase() {
     abstract fun dao(): CardDao
     abstract fun ledger(): LedgerDao
     abstract fun backup(): BackupDao
+    abstract fun spends(): SpendDao
 
     companion object {
         /** Database file name (kept from the app's old name, so existing data is found). */
@@ -33,7 +34,7 @@ abstract class AppDatabase : RoomDatabase() {
             System.loadLibrary("sqlcipher")
             return Room.databaseBuilder(context, AppDatabase::class.java, FILE)
                 .openHelperFactory(SupportOpenHelperFactory(passphrase))
-                .addMigrations(Repair(4), Repair(5), V6to7, V7to8, V8to9, V9to10)
+                .addMigrations(Repair(4), Repair(5), V6to7, V7to8, V8to9, V9to10, V10to11)
                 .build()
         }
     }
@@ -65,6 +66,28 @@ abstract class AppDatabase : RoomDatabase() {
             db.execSQL(
                 "CREATE TABLE IF NOT EXISTS `holder_names` (`name` TEXT NOT NULL, `lastUsed` INTEGER NOT NULL, `uses` INTEGER NOT NULL, PRIMARY KEY(`name`))",
             )
+        }
+    }
+
+    /** The spend log (bank alerts and manual entries) and alerts that couldn't be read. */
+    private object V10to11 : Migration(10, 11) {
+        override fun migrate(db: SupportSQLiteDatabase) {
+            db.execSQL(
+                "CREATE TABLE IF NOT EXISTS `spends` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `cardId` INTEGER NOT NULL, " +
+                    "`atMillis` INTEGER NOT NULL, `epochDay` INTEGER NOT NULL, `amountPaise` INTEGER NOT NULL, `isCredit` INTEGER NOT NULL, " +
+                    "`kind` TEXT NOT NULL, `currency` TEXT NOT NULL, `merchant` TEXT NOT NULL, `categoryId` INTEGER, `note` TEXT NOT NULL, " +
+                    "`source` TEXT NOT NULL, `availablePaise` INTEGER, `reference` TEXT NOT NULL, `dedupeKey` TEXT NOT NULL, " +
+                    "`review` TEXT NOT NULL, `statementId` INTEGER, `statementTxnId` INTEGER, " +
+                    "FOREIGN KEY(`cardId`) REFERENCES `cards`(`id`) ON UPDATE NO ACTION ON DELETE CASCADE )",
+            )
+            db.execSQL("CREATE INDEX IF NOT EXISTS `index_spends_cardId` ON `spends` (`cardId`)")
+            db.execSQL("CREATE INDEX IF NOT EXISTS `index_spends_epochDay` ON `spends` (`epochDay`)")
+            db.execSQL("CREATE UNIQUE INDEX IF NOT EXISTS `index_spends_dedupeKey` ON `spends` (`dedupeKey`)")
+            db.execSQL(
+                "CREATE TABLE IF NOT EXISTS `alert_misses` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `sender` TEXT NOT NULL, " +
+                    "`body` TEXT NOT NULL, `at` INTEGER NOT NULL, `reason` TEXT NOT NULL, `source` TEXT NOT NULL)",
+            )
+            db.execSQL("CREATE INDEX IF NOT EXISTS `index_alert_misses_at` ON `alert_misses` (`at`)")
         }
     }
 

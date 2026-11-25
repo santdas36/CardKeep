@@ -288,6 +288,7 @@ class Ledger(private val dao: LedgerDao, private val onCardChanged: suspend (Lon
             dao.deleteRulesFor(p)
             dao.insertRule(CategoryRule(categoryId = categoryId, pattern = p, priority = DefaultCategories.USER_PRIORITY))
             dao.recategorise(p, categoryId)
+            dao.recategoriseSpends(p, categoryId)
         }
     }
 

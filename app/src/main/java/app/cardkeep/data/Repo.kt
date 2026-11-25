@@ -14,7 +14,9 @@ import java.time.LocalDate
 
 class Repo(private val dao: CardDao, private val ledgerDao: LedgerDao, private val context: Context) {
 
-    val ledger = Ledger(ledgerDao) { cardId -> syncOutstandingFromStatement(cardId) }
+    val ledger = Ledger(ledgerDao) { cardId -> syncOutstandingFromStatement(cardId); checkSpends(cardId) }
+
+    val spendLog = SpendLog(CardsApp.from(context).db.spends(), ledgerDao)
 
     /** Every card, archived included (for history: activity, statements, detail). */
     val everyCard: Flow<List<CardWithDue>> =
@@ -175,6 +177,12 @@ class Repo(private val dao: CardDao, private val ledgerDao: LedgerDao, private v
         }
         dao.update(c)
         reschedule(cardId)
+    }
+
+    /** Re-checks the card's spends against its statements, and says so when some need a look. */
+    private suspend fun checkSpends(cardId: Long) {
+        val flagged = spendLog.reconcileCard(cardId)
+        if (flagged > 0) dao.card(cardId)?.let { app.cardkeep.reminders.Notifications.showSpendReview(context, it, flagged) }
     }
 
     private suspend fun reschedule(id: Long) {

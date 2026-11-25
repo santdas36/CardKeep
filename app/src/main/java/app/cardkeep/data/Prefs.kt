@@ -42,6 +42,21 @@ class Prefs(context: Context) {
         get() = sp.getString("theme_mode", "system") ?: "system"
         set(v) = sp.edit { putString("theme_mode", v) }
 
+    /** Spend tracking: read bank SMS (needs the SMS permissions too). */
+    var readSms: Boolean
+        get() = sp.getBoolean("read_sms", false)
+        set(v) = sp.edit { putBoolean("read_sms", v) }
+
+    /** Spend tracking: read bank alerts from message notifications (RCS). Needs notification access too. */
+    var readNotifications: Boolean
+        get() = sp.getBoolean("read_notifications", false)
+        set(v) = sp.edit { putBoolean("read_notifications", v) }
+
+    /** Newest SMS date already scanned from the inbox (0 = never scanned). */
+    var smsScannedUpTo: Long
+        get() = sp.getLong("sms_scanned_up_to", 0L)
+        set(v) = sp.edit { putLong("sms_scanned_up_to", v) }
+
     /** When the last backup file was saved (0 = never). */
     var lastBackupAt: Long
         get() = sp.getLong("last_backup_at", 0L)

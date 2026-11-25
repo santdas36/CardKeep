@@ -22,7 +22,8 @@ import javax.crypto.spec.SecretKeySpec
  * The key comes from the password via PBKDF2-HMAC-SHA256. The header is authenticated as GCM AAD, so
  * tampering with it fails decryption. Card secrets are inside in plain form (the file is the protection)
  * and are re-encrypted under the new phone's own Keystore keys on restore.
- * Not included: the Gmail app password (revocable; paste it again after restoring).
+ * Not included: the Gmail app password (revocable; paste it again after restoring), and bank alerts that
+ * couldn't be read (kept on the phone for a week only).
  */
 object Backup {
     private val MAGIC = "CARDSBK1".toByteArray()
@@ -33,7 +34,7 @@ object Backup {
     class WrongPassword : Exception("Wrong password, or not a Cards backup")
 
     /** What a backup holds, shown before restoring. */
-    data class Summary(val createdAt: Long, val cards: Int, val statements: Int, val transactions: Int)
+    data class Summary(val createdAt: Long, val cards: Int, val statements: Int, val transactions: Int, val spends: Int = 0)
 
     /** Decrypted contents, ready to restore. */
     class Contents internal constructor(internal val json: JSONObject) {
@@ -42,6 +43,7 @@ object Backup {
             json.optJSONArray("cards")?.length() ?: 0,
             json.optJSONArray("statements")?.length() ?: 0,
             json.optJSONArray("transactions")?.length() ?: 0,
+            json.optJSONArray("spends")?.length() ?: 0,
         )
     }
 
@@ -140,13 +142,21 @@ object Backup {
                     .put("receivedAt", l.receivedAt).put("outcome", l.outcome).put("detail", l.detail)
                     .putOpt("statementId", l.statementId).put("at", l.at)
             }))
+            .put("spends", JSONArray(d.spends().map { s ->
+                JSONObject().put("id", s.id).put("cardId", s.cardId).put("atMillis", s.atMillis).put("epochDay", s.epochDay)
+                    .put("amountPaise", s.amountPaise).put("isCredit", s.isCredit).put("kind", s.kind).put("currency", s.currency)
+                    .put("merchant", s.merchant).putOpt("categoryId", s.categoryId).put("note", s.note).put("source", s.source)
+                    .putOpt("availablePaise", s.availablePaise).put("reference", s.reference).put("dedupeKey", s.dedupeKey)
+                    .put("review", s.review).putOpt("statementId", s.statementId).putOpt("statementTxnId", s.statementTxnId)
+            }))
             .put("senderCards", JSONArray(d.senderCards().map { JSONObject().put("sender", it.sender).put("cardId", it.cardId) }))
             .put("holderNames", JSONArray(db.dao().holderNames().map {
                 JSONObject().put("name", it.name).put("lastUsed", it.lastUsed).put("uses", it.uses)
             }))
             .put("prefs", JSONObject()
                 .put("lockTimeoutSec", prefs.lockTimeoutSec).put("defaultLeads", prefs.defaultLeads)
-                .put("palette", prefs.palette).put("themeMode", prefs.themeMode))
+                .put("palette", prefs.palette).put("themeMode", prefs.themeMode)
+                .put("readSms", prefs.readSms).put("readNotifications", prefs.readNotifications))
         d.mailSource()?.let { m ->
             o.put("mail", JSONObject().put("host", m.host).put("port", m.port).put("user", m.user)
                 .put("extraSenders", m.extraSenders).put("lookbackDays", m.lookbackDays)
@@ -197,6 +207,7 @@ object Backup {
         }.filterNotNull()
 
         db.withTransaction {
+            d.clearSpends(); d.clearAlertMisses()
             d.clearSenderCards(); d.clearPendingPdfs(); d.clearImportLog(); d.clearTxns(); d.clearStatements()
             d.clearPayments(); d.clearSecrets(); d.clearCards(); d.clearRules(); d.clearCategories()
 
@@ -234,6 +245,16 @@ object Backup {
                 )
             }.filter { it.outcome !in PENDING_PDF_OUTCOMES })
             d.putSenderCards(map("senderCards") { SenderCard(it.getString("sender"), it.getLong("cardId")) })
+            d.putSpends(map("spends") { s ->
+                Spend(
+                    id = s.getLong("id"), cardId = s.getLong("cardId"), atMillis = s.getLong("atMillis"), epochDay = s.getLong("epochDay"),
+                    amountPaise = s.getLong("amountPaise"), isCredit = s.getBoolean("isCredit"), kind = s.optString("kind", "spend"),
+                    currency = s.optString("currency", "INR"), merchant = s.optString("merchant"), categoryId = s.lOrNull("categoryId"),
+                    note = s.optString("note"), source = s.optString("source", SpendSource.MANUAL), availablePaise = s.lOrNull("availablePaise"),
+                    reference = s.optString("reference"), dedupeKey = s.getString("dedupeKey"), review = s.optString("review", SpendReview.NONE),
+                    statementId = s.lOrNull("statementId"), statementTxnId = s.lOrNull("statementTxnId"),
+                )
+            })
 
             // Saved names. Older backups have none: take them from the cards' own holder names instead.
             val names = if (j.has("holderNames")) map("holderNames") { n ->
@@ -266,6 +287,9 @@ object Backup {
             prefs.defaultLeads = p.optString("defaultLeads", prefs.defaultLeads)
             prefs.palette = p.optString("palette", prefs.palette)
             prefs.themeMode = p.optString("themeMode", prefs.themeMode)
+            // Permissions don't travel with a backup: these only take effect once granted on this phone.
+            prefs.readSms = p.optBoolean("readSms", prefs.readSms)
+            prefs.readNotifications = p.optBoolean("readNotifications", prefs.readNotifications)
         }
         return cards.size
     }

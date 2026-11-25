@@ -68,6 +68,9 @@ interface LedgerDao {
     @Query("SELECT * FROM transactions")
     suspend fun txns(): List<Txn>
 
+    @Query("UPDATE spends SET categoryId = :categoryId WHERE merchant LIKE '%' || :pattern || '%'")
+    suspend fun recategoriseSpends(pattern: String, categoryId: Long?)
+
     // Categories and rules
     @Query("SELECT * FROM categories ORDER BY name")
     fun observeCategories(): Flow<List<Category>>

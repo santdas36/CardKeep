@@ -18,6 +18,7 @@ interface BackupDao {
     @Query("SELECT * FROM mail_source WHERE id = 1") suspend fun mailSource(): MailSource?
     @Query("SELECT * FROM import_log") suspend fun importLog(): List<ImportLog>
     @Query("SELECT * FROM sender_cards") suspend fun senderCards(): List<SenderCard>
+    @Query("SELECT * FROM spends") suspend fun spends(): List<Spend>
 
     @Insert(onConflict = OnConflictStrategy.REPLACE) suspend fun putCards(v: List<Card>)
     @Insert(onConflict = OnConflictStrategy.REPLACE) suspend fun putSecrets(v: List<CardSecret>)
@@ -29,9 +30,12 @@ interface BackupDao {
     @Insert(onConflict = OnConflictStrategy.REPLACE) suspend fun putMailSource(v: MailSource)
     @Insert(onConflict = OnConflictStrategy.REPLACE) suspend fun putImportLog(v: List<ImportLog>)
     @Insert(onConflict = OnConflictStrategy.REPLACE) suspend fun putSenderCards(v: List<SenderCard>)
+    @Insert(onConflict = OnConflictStrategy.REPLACE) suspend fun putSpends(v: List<Spend>)
 
     // Children first, so foreign keys never block the wipe.
     @Query("DELETE FROM sender_cards") suspend fun clearSenderCards()
+    @Query("DELETE FROM spends") suspend fun clearSpends()
+    @Query("DELETE FROM alert_misses") suspend fun clearAlertMisses()
     @Query("DELETE FROM pending_pdfs") suspend fun clearPendingPdfs()
     @Query("DELETE FROM import_log") suspend fun clearImportLog()
     @Query("DELETE FROM transactions") suspend fun clearTxns()

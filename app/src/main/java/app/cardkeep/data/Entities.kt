@@ -234,4 +234,76 @@ data class HolderName(
 data class SenderCard(
     @PrimaryKey val sender: String,
     val cardId: Long,
-)
+)
+/**
+ * One entry in the spend log: a card transaction read from a bank SMS or message notification, or added
+ * by hand. Separate from statements: a statement only checks these (see [Spend.review]), never writes them.
+ */
+@Entity(
+    tableName = "spends",
+    foreignKeys = [ForeignKey(Card::class, ["id"], ["cardId"], onDelete = ForeignKey.CASCADE)],
+    indices = [Index("cardId"), Index("epochDay"), Index(value = ["dedupeKey"], unique = true)],
+)
+data class Spend(
+    @PrimaryKey(autoGenerate = true) val id: Long = 0,
+    val cardId: Long,
+    /** When it happened: the time in the message if it has one, else when the message arrived. */
+    val atMillis: Long,
+    /** Local date of [atMillis], for grouping and statement matching. */
+    val epochDay: Long,
+    val amountPaise: Long,
+    /** Money back to the card (refund, payment, cashback). */
+    val isCredit: Boolean,
+    /** [app.cardkeep.ingest.TxnKind]: spend, refund, payment or cashback. */
+    val kind: String,
+    /** "INR", or the alert's currency for spends abroad ([amountPaise] is then in that currency's minor units). */
+    val currency: String,
+    val merchant: String,
+    val categoryId: Long?,
+    val note: String,
+    /** sms, notification or manual. */
+    val source: String,
+    /** Available limit (or balance) the alert reported, if any. */
+    val availablePaise: Long?,
+    val reference: String,
+    val dedupeKey: String,
+    /** none, matched, missing, differs or dismissed. See [SpendReview]. */
+    val review: String,
+    /** The statement and line this was matched with. */
+    val statementId: Long?,
+    val statementTxnId: Long?,
+)
+
+object SpendSource {
+    const val SMS = "sms"
+    const val NOTIFICATION = "notification"
+    const val MANUAL = "manual"
+}
+
+object SpendReview {
+    /** Not checked yet (current cycle, or no statement for its period). */
+    const val NONE = "none"
+    const val MATCHED = "matched"
+    /** Its statement arrived and doesn't have it. */
+    const val MISSING = "missing"
+    /** Its statement has it, but for a different amount. */
+    const val DIFFERS = "differs"
+    /** Looked at and accepted as is. */
+    const val DISMISSED = "dismissed"
+
+    fun flagged(review: String) = review == MISSING || review == DIFFERS
+}
+
+/**
+ * A bank alert that looked like a card transaction but couldn't be logged (unreadable, or no card in the
+ * wallet with those digits). Kept a week so missing formats can be spotted; never backed up or exported.
+ */
+@Entity(tableName = "alert_misses", indices = [Index("at")])
+data class AlertMiss(
+    @PrimaryKey(autoGenerate = true) val id: Long = 0,
+    val sender: String,
+    val body: String,
+    val at: Long,
+    val reason: String,
+    val source: String,
+)
