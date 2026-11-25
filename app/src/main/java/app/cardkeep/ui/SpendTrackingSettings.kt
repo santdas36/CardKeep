@@ -14,7 +14,6 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.outlined.ErrorOutline
 import androidx.compose.material.icons.outlined.History
 import androidx.compose.material.icons.outlined.Notifications
 import androidx.compose.material.icons.outlined.Sms
@@ -117,11 +116,6 @@ fun SpendTrackingSection(prefs: Prefs, onAlerts: () -> Unit) {
         openSystemSettings(context, intent)
     }
 
-    Text(
-        "Log card spends as they happen, from your bank's alerts. Read on your phone only.",
-        style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
-        modifier = Modifier.padding(start = 4.dp, end = 4.dp, bottom = 12.dp),
-    )
     Panel(padded = false) {
         if (hasTelephony) {
             ListRow(
@@ -148,16 +142,15 @@ fun SpendTrackingSection(prefs: Prefs, onAlerts: () -> Unit) {
                         else -> scanResult ?: "Look through your inbox for card alerts you missed"
                     },
                     onClick = if (smsOn && !scanning) ({ scan(AlertIngest.BACKFILL_DAYS) }) else null,
-                    action = if (scanning) ({ CircularProgressIndicator(Modifier.size(20.dp), strokeWidth = 2.dp) }) else null,
+                    action = when {
+                        scanning -> ({ CircularProgressIndicator(Modifier.size(20.dp), strokeWidth = 2.dp) })
+                        // Bank alerts that couldn't be logged: a small warning that opens the list.
+                        misses.isNotEmpty() -> ({ StatusPill("${misses.size} unread", Amber, onClick = onAlerts) })
+                        else -> null
+                    },
                 )
             }
         }
-        RowDivider()
-        ListRow(
-            Icons.Outlined.ErrorOutline, "Alerts we couldn't read",
-            if (misses.isEmpty()) "None" else "${misses.size} in the last 7 days",
-            chevron = true, onClick = onAlerts,
-        )
     }
 
     blocked?.let { what ->
