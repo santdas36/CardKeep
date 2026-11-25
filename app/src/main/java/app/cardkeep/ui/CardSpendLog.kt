@@ -1,9 +1,9 @@
 package app.cardkeep.ui
 
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
@@ -26,6 +26,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import app.cardkeep.CardsApp
@@ -61,10 +62,12 @@ fun CardSpendLog(card: Card, lastStatementDay: Long?, onOpenSpends: () -> Unit) 
     val flagged = mine.filter { SpendReview.flagged(it.review) }
     var showFlagged by remember { mutableStateOf(false) }
 
-    SectionHeader(if (card.isCredit && period.isCycle) "This cycle" else "This month")
+    // Only a credit card with a known cycle has a bill; other cards just count the month.
+    val billed = card.isCredit && period.isCycle
+    SectionHeader(if (billed) "This cycle" else "This month")
     Panel(padded = false) {
         ListRow(
-            Icons.AutoMirrored.Outlined.ReceiptLong, "Unbilled spends",
+            Icons.AutoMirrored.Outlined.ReceiptLong, if (billed) "Unbilled spends" else "Spends so far",
             subtitle = "Since ${Dates.short(period.start)}",
             trailing = if (counted.isEmpty()) "No spends yet" else "${Money.inr(spent.coerceAtLeast(0), true)} · ${counted.size}",
             chevron = true, onClick = onOpenSpends,
@@ -107,21 +110,25 @@ private fun FlaggedSheet(spends: List<Spend>, onDismiss: () -> Unit) {
             Panel(padded = false) {
                 spends.sortedByDescending { it.atMillis }.forEachIndexed { i, s ->
                     if (i > 0) RowDivider(inset = false)
-                    Row(Modifier.fillMaxWidth().heightIn(min = 60.dp).padding(start = 16.dp, end = 4.dp, top = 8.dp, bottom = 8.dp), verticalAlignment = Alignment.CenterVertically) {
-                        Column(Modifier.weight(1f)) {
-                            Text(s.merchant, style = MaterialTheme.typography.bodyLarge, maxLines = 1)
-                            Text(
-                                Dates.short(LocalDate.ofEpochDay(s.epochDay)) + " · " +
-                                    if (s.review == SpendReview.DIFFERS) "Amount differs" else "Missing from statement",
-                                style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            )
+                    Column(Modifier.fillMaxWidth().padding(start = 16.dp, end = 16.dp, top = 14.dp, bottom = 6.dp)) {
+                        Row(verticalAlignment = Alignment.Top) {
+                            Column(Modifier.weight(1f)) {
+                                Text(s.merchant.ifBlank { TxnKind.label(s.kind) }, style = MaterialTheme.typography.bodyLarge, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                                Text(
+                                    Dates.short(LocalDate.ofEpochDay(s.epochDay)),
+                                    style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                )
+                            }
+                            Text(spendAmountText(s), style = MaterialTheme.typography.bodyLarge.tabular, modifier = Modifier.padding(start = 12.dp))
                         }
                         Text(
-                            spendAmountText(s),
-                            style = MaterialTheme.typography.bodyLarge.tabular, modifier = Modifier.padding(horizontal = 8.dp),
+                            if (s.review == SpendReview.DIFFERS) "The statement shows a different amount." else "The statement doesn't have this spend.",
+                            style = MaterialTheme.typography.bodySmall, color = Amber, modifier = Modifier.padding(top = 6.dp),
                         )
-                        TextButton(onClick = { scope.launch { log.delete(s) } }) { Text("Remove", color = Danger) }
-                        TextButton(onClick = { scope.launch { log.dismiss(s) } }) { Text("Keep") }
+                        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
+                            TextButton(onClick = { scope.launch { log.delete(s) } }) { Text("Remove", color = Danger) }
+                            TextButton(onClick = { scope.launch { log.dismiss(s) } }) { Text("Keep") }
+                        }
                     }
                 }
             }

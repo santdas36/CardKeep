@@ -107,7 +107,7 @@ fun CardSpendsScreen(cardId: Long, onBack: () -> Unit) {
             TopAppBar(
                 title = {
                     Column {
-                        Text(if (cw?.card?.isCredit != false) "This cycle" else "This month")
+                        Text(if (cw?.card?.hasDues != false) "This cycle" else "This month")
                         cw?.let { Text("${it.card.nickname} •• ${it.card.last4}", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant) }
                     }
                 },
