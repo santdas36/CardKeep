@@ -10,6 +10,7 @@ import androidx.core.content.ContextCompat
 import app.cardkeep.CardsApp
 import app.cardkeep.data.Card
 import app.cardkeep.data.Spend
+import app.cardkeep.data.SpendSource
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 
@@ -103,7 +104,7 @@ object AlertIngest {
             }
         }
         for ((from, body, date) in rows) {
-            if (handle(app, from, body, date, app.cardkeep.data.SpendSource.SMS) != null) added++
+            if (handle(app, from, body, date, SpendSource.SMS) != null) added++
             if (date > newest) newest = date
         }
         app.prefs.smsScannedUpTo = maxOf(newest, app.prefs.smsScannedUpTo)
