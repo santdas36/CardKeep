@@ -114,6 +114,7 @@ private fun spentOf(list: List<Spend>) =
     list.filter { it.currency == "INR" }.sumOf { TxnKind.spendSign(it.kind, it.isCredit) * it.amountPaise }
 
 private val timeFormat = DateTimeFormatter.ofPattern("h:mm a", Locale.ENGLISH)
+private val dayTimeFormat = DateTimeFormatter.ofPattern("d MMM, h:mm a", Locale.ENGLISH)
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
@@ -489,8 +490,9 @@ private fun CategoryChip(name: String, pct: Int, color: Color, onClick: (() -> U
     }
 }
 
+/** One spend in a list. [withDate] shows the day too, for lists not grouped by day. */
 @Composable
-private fun SpendRow(s: Spend, cw: CardWithDue?, cat: Category?, onClick: () -> Unit) {
+internal fun SpendRow(s: Spend, cw: CardWithDue?, cat: Category?, withDate: Boolean = false, onClick: () -> Unit) {
     val counted = TxnKind.spendSign(s.kind, s.isCredit) != 0 && s.kind != TxnKind.REFUND
     val flagged = SpendReview.flagged(s.review)
     Row(
@@ -504,7 +506,7 @@ private fun SpendRow(s: Spend, cw: CardWithDue?, cat: Category?, onClick: () -> 
                 Text(
                     listOfNotNull(
                         cw?.card?.let { "${it.nickname} •• ${it.last4}" },
-                        Instant.ofEpochMilli(s.atMillis).atZone(ZoneId.systemDefault()).format(timeFormat),
+                        Instant.ofEpochMilli(s.atMillis).atZone(ZoneId.systemDefault()).format(if (withDate) dayTimeFormat else timeFormat),
                     ).joinToString(" · "),
                     style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
                     maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f, fill = false),
