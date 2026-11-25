@@ -38,6 +38,7 @@ import app.cardkeep.ingest.StatementSync
 import app.cardkeep.reminders.Notifications
 import app.cardkeep.ui.ActivityScreen
 import app.cardkeep.ui.AlertMissesScreen
+import app.cardkeep.ui.CardSpendsScreen
 import app.cardkeep.ui.Appearance
 import app.cardkeep.ui.ArchivedScreen
 import app.cardkeep.ui.MailScreen
@@ -128,6 +129,7 @@ class MainActivity : FragmentActivity() {
 
                 val ledger = app.repo.ledger
                 val statements by ledger.statements.collectAsStateWithLifecycle(initialValue = emptyList())
+                val txns by ledger.txns.collectAsStateWithLifecycle(initialValue = emptyList())
                 val spends by app.repo.spendLog.spends.collectAsStateWithLifecycle(initialValue = emptyList())
                 val categories by ledger.categories.collectAsStateWithLifecycle(initialValue = emptyList())
                 val mail by ledger.mailSource.collectAsStateWithLifecycle(initialValue = null)
@@ -237,6 +239,7 @@ class MainActivity : FragmentActivity() {
                                         val m = mail
                                         ActivityScreen(
                                             spends = spends,
+                                            txns = txns,
                                             cards = everyCard,
                                             categories = categories,
                                             statements = statements,
@@ -274,6 +277,7 @@ class MainActivity : FragmentActivity() {
                                 repo = app.repo,
                                 statements = statements,
                                 onOpenStatement = { nav.navigate("statement/$it") },
+                                onOpenSpends = { nav.navigate("spends/$id") },
                                 onBack = { nav.popBackStack() },
                                 onEdit = { nav.navigate("edit/$id") },
                             )
@@ -339,6 +343,9 @@ class MainActivity : FragmentActivity() {
                                 onArchived = { nav.navigate("archived") }, archivedCount = archived.size,
                                 onAlerts = { nav.navigate("alerts") },
                             )
+                        }
+                        composable("spends/{id}", arguments = listOf(navArgument("id") { type = NavType.LongType })) { entry ->
+                            CardSpendsScreen(entry.arguments!!.getLong("id"), onBack = { nav.popBackStack() })
                         }
                         composable("alerts") { AlertMissesScreen(onBack = { nav.popBackStack() }) }
                         composable("archived") {
