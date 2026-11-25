@@ -169,6 +169,7 @@ fun ActivityScreen(
     }
     val previous = remember(entries, q, cardFilter, catFilter, month) { entries.filter { matches(it, ym.minusMonths(1), q) } }
     val review = statements.filter { it.status == Ledger.STATUS_REVIEW }
+    var reviewing by remember { mutableStateOf(false) }
 
     val exporter = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("text/csv")) { uri ->
         if (uri != null) scope.launch { exportCsv(context, uri, filtered, cardById, catById) }
@@ -230,8 +231,9 @@ fun ActivityScreen(
                         Prompt(
                             Icons.AutoMirrored.Outlined.ReceiptLong,
                             if (review.size == 1) "1 statement needs a look" else "${review.size} statements need a look",
-                            "Totals don't match", Amber.copy(alpha = 0.16f),
-                        ) { onOpenStatement(review.minBy { it.statementEpochDay }.id) }
+                            // One: what's wrong with it, and tapping opens it. Several: a sheet lists each with its reason.
+                            review.singleOrNull()?.note?.ifBlank { null }, Amber.copy(alpha = 0.16f),
+                        ) { if (review.size == 1) onOpenStatement(review[0].id) else reviewing = true }
                     }
 
                     if (entries.isNotEmpty() || spends.isNotEmpty()) {
@@ -360,6 +362,10 @@ fun ActivityScreen(
         }
     }
 
+    if (reviewing && review.isNotEmpty()) {
+        ReviewSheet(review, cardById, onOpen = onOpenStatement, onDismiss = { reviewing = false })
+    }
+
     openLine?.let { t ->
         TxnSheet(
             txn = t, card = cardById[t.cardId], categories = categories, statement = statements.firstOrNull { it.id == t.statementId },
@@ -392,7 +398,7 @@ private fun NoSpends(onOpenTracking: () -> Unit, onAdd: () -> Unit) {
 }
 
 @Composable
-private fun Prompt(icon: androidx.compose.ui.graphics.vector.ImageVector, title: String, subtitle: String, bg: Color, onClick: () -> Unit) {
+private fun Prompt(icon: androidx.compose.ui.graphics.vector.ImageVector, title: String, subtitle: String?, bg: Color, onClick: () -> Unit) {
     Panel(
         modifier = Modifier.padding(horizontal = Gutter, vertical = 4.dp).clip(MaterialTheme.shapes.large).clickable(onClick = onClick),
         padded = false, color = bg,
@@ -401,7 +407,7 @@ private fun Prompt(icon: androidx.compose.ui.graphics.vector.ImageVector, title:
             Icon(icon, null)
             Column(Modifier.weight(1f).padding(start = 14.dp)) {
                 Text(title, style = MaterialTheme.typography.titleSmall)
-                Text(subtitle, style = MaterialTheme.typography.bodySmall)
+                subtitle?.let { Text(it, style = MaterialTheme.typography.bodySmall) }
             }
             Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, null)
         }

@@ -450,24 +450,24 @@ object Parsers {
      * for rounding). Anything else is "needs review", never a silent import.
      */
     fun validate(p: ParsedStatement): Validation {
-        if (p.totalDuePaise == null) return Validation(false, "Couldn't find the total amount due")
-        if (p.dueDate == null) return Validation(false, "Couldn't find the payment due date")
+        if (p.totalDuePaise == null) return Validation(false, "Total due not found")
+        if (p.dueDate == null) return Validation(false, "Due date not found")
         if (p.lines.isEmpty() && p.totalDuePaise != 0L && p.totalDuePaise != p.openingPaise) {
-            return Validation(false, "No transaction lines found")
+            return Validation(false, "No transactions found")
         }
-        val opening = p.openingPaise ?: return Validation(false, "Couldn't find the opening balance to check the lines against")
+        val opening = p.openingPaise ?: return Validation(false, "Opening balance not found")
         val computed = opening + p.debits - p.credits
         val diff = computed - p.totalDuePaise
         return if (abs(diff) <= 100) Validation(true, "")
-        else Validation(false, "Lines don't add up: opening + debits − credits is off by ${app.cardkeep.domain.Money.inr(abs(diff), true)}")
+        else Validation(false, "Transactions are off by ${app.cardkeep.domain.Money.inr(abs(diff), true)}")
     }
 
     fun validate(totalDue: Long?, dueKnown: Boolean, opening: Long?, debits: Long, credits: Long): Validation =
         when {
-            totalDue == null -> Validation(false, "Total amount due is missing")
-            !dueKnown -> Validation(false, "Payment due date is missing")
-            opening == null -> Validation(false, "Opening balance is missing")
+            totalDue == null -> Validation(false, "Total due not found")
+            !dueKnown -> Validation(false, "Due date not found")
+            opening == null -> Validation(false, "Opening balance not found")
             abs(opening + debits - credits - totalDue) <= 100 -> Validation(true, "")
-            else -> Validation(false, "Lines don't add up: off by ${app.cardkeep.domain.Money.inr(abs(opening + debits - credits - totalDue), true)}")
+            else -> Validation(false, "Transactions are off by ${app.cardkeep.domain.Money.inr(abs(opening + debits - credits - totalDue), true)}")
         }
 }
