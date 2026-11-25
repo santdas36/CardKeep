@@ -221,6 +221,115 @@ class ParserTest {
         }
     }
 
+    // Newer Roarbank layout (synthetic): Balance is the debt as a negative number; a description can start on the date's line.
+    @Test fun unityOwedLayout() {
+        val text = """
+            Statement Period: 01.07.2026 - 31.07.2026
+            Bill Date: 01.08.2026
+            Card number: **** **** **** 1234
+            Saving Account:
+            Balance at the beginning of period: 0.00
+            Credit Card:
+            Sanctioned Credit Limit: 100,000.00
+            Total Amount Due (TAD): 330.12
+            Minimum Amount Due (MAD) including past dues if available: 330.12
+            Payment Due Date: 28.08.2026
+            Balance at the beginning of period: -1,536.29
+            Total Credit transactions for the period: 1,536.29
+            Total Debit transactions for the period: 330.12
+            01-07-2026
+            11:02:04 someone@upi 1,536.29 - - 0.00
+            02-07-2026
+            20:04:06 SAMPLE STORE - 70.00 - -70.00
+            31-07-2026 SAMPLE CINEMAS
+            09:22:52 PRIVATE LIMITED - 260.12 - -330.12
+        """.trimIndent()
+        val p = Parsers.forIssuer("Unity Bank (Roar)").parse(text)
+        assertEquals(153_629L, p.openingPaise)
+        assertEquals(3, p.lines.size)
+        assertEquals("SAMPLE CINEMAS PRIVATE LIMITED", p.lines[2].description)
+        assertTrue(Parsers.validate(p).note, Parsers.validate(p).ok)
+    }
+
+    // Roarbank, Jan 2026 layout (synthetic): no card starting balance (savings has one), rows on one line, descriptions wrapped below.
+    @Test fun unityWrappedRows() {
+        val text = """
+            Statement Period: 01.01.2026 - 31.01.2026
+            Bill Date: 01.02.2026
+            Card number: 652974****1234
+            Saving Account:
+            Balance at the beginning of period: 0.00
+            Credit Card:
+            Credit limit: 5,000.00
+            Total Amount Due (TAD): 390.00
+            Minimum Amount Due (MAD) including past dues if available: 390.00
+            Payment Due Date: 25.02.2026
+            Date Description Credit Amount Debit Amount Fee Balance
+            01-01-2026 1234567890@up 1,269.00 - - 0.00
+            09:28:33 i
+            04-01-2026 SAMPLE - 155.00 - -155.00
+            16:51:22 STATE
+            TRANSPORT
+            31-01-2026 Kalyani R - 235.00 - -390.00
+            12:58:45
+            *Note that Charges, including GST, reduce the available credit limit
+        """.trimIndent()
+        val p = Parsers.forIssuer("Unity Bank (Roar)").parse(text)
+        assertEquals(126_900L, p.openingPaise)
+        assertEquals(listOf("1234567890@upi", "SAMPLE STATE TRANSPORT", "Kalyani R"), p.lines.map { it.description })
+        assertTrue(Parsers.validate(p).note, Parsers.validate(p).ok)
+    }
+
+    // HDFC Diners (synthetic): column values a few lines below their headings, a bare "Date:", and the summary as a row of figures.
+    @Test fun hdfcDinersLayout() {
+        val text = """
+            Diners Club International Credit Card Statement
+            Name : SAMPLE NAME Statement for HDFC Bank Credit Card
+            Email : someone@example.com Statement Card No: 3610 10XXXX 4321
+            0 Address : 1 Sample Street Date:15/03/2026 AAN : 0001
+            Payment Due Date Total Dues Minimum Amount Due
+            GST No :
+            0
+            03/I2n 0 c2as6e you wish to update 04/04/2026 1,100.00 100.00
+            If the Minimum Amount Due is paid, Opening Payment/ Purchase/ Finance
+            Total Dues
+            than the Total Amount Due, Interest Balance Credits Debits Charges
+            any) on an average daily reducing balance method. 500.00 500.00 1,100.00 0.00 1,100.00
+            Domestic Transactions
+            Date Transaction Description Feature Reward Amount (in Rs.)
+            17/02/2026 10:06:39 CC PAYMENT 123456 PayZapp (Ref# 000001) 500.00 Cr
+            27/02/2026 20:24:37 SAMPLE STORE SALEM 18 1,100.00
+        """.trimIndent()
+        val p = Parsers.forIssuer("HDFC Bank").parse(text)
+        assertEquals(LocalDate.of(2026, 3, 15), p.statementDate)
+        assertEquals(LocalDate.of(2026, 4, 4), p.dueDate)
+        assertEquals(110_000L, p.totalDuePaise)
+        assertEquals(50_000L, p.openingPaise)
+        assertEquals("4321", p.last4)
+        assertTrue(Parsers.validate(p).note, Parsers.validate(p).ok)
+    }
+
+    // Axis (synthetic): a period column takes two dates; the summary figures sit two lines under their equation.
+    @Test fun axisPeriodColumn() {
+        val text = """
+            Total Payment Due Minimum Payment Due Statement Period Payment Due Date Statement Generation Date
+            1,020.00 Dr 100.00 Dr 14/06/2026 - 12/07/2026 01/08/2026 12/07/2026
+            Card Number 653036******4321
+            Previous Balance - Payments - Credits + Purchase + Cash Advance + Other Debit&Charges =Total Payment Due Making only the minimum payment every
+            month would result in the repayment stretching
+            500.00 Dr 500.00 30.00 1,050.00 0.00 0.00 1,020.00 Dr over years
+            14/06/2026 BBPS PAYMENT RECEIVED - ABC123 500.00 Cr
+            19/06/2026 SAMPLE STORE 1,050.00 Dr
+            08/07/2026 CASHBACK CREDIT 30.00 Cr
+        """.trimIndent()
+        val p = Parsers.forIssuer("Axis Bank").parse(text)
+        assertEquals(LocalDate.of(2026, 7, 12), p.statementDate)
+        assertEquals(LocalDate.of(2026, 8, 1), p.dueDate)
+        assertEquals(50_000L, p.openingPaise)
+        assertEquals(3, p.lines.size)
+        assertTrue(Parsers.validate(p).note, Parsers.validate(p).ok)
+    }
+
     @Test fun hdfcLayout() {
         val p = Parsers.forIssuer("HDFC Bank").parse(hdfcLayout)
         assertEquals(LocalDate.of(2026, 9, 15), p.statementDate)

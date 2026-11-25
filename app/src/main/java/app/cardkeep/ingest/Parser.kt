@@ -95,19 +95,23 @@ open class LabelParser(
         val fields = HeaderFields(lines)
 
         val periodDates = fields.dates(period, 2)
-        val stmt = fields.date(stmtDate) ?: periodDates.getOrNull(1)
+        val dueDate = fields.date(due)
+        // A statement date after the due date, or months before it, was read from the wrong place.
+        fun sane(d: LocalDate?) = d?.takeIf { dueDate == null || (!it.isAfter(dueDate) && !it.isBefore(dueDate.minusDays(62))) }
+        val stmt = sane(fields.date(stmtDate)) ?: sane(periodDates.getOrNull(1)) ?: sane(Text.bareDate(lines))
         val periodStart = periodDates.getOrNull(0)
 
         val txns = transactionLines(lines, stmt, periodStart)
         val equation by lazy { Text.summaryEquation(lines) }
+        // A trailing "Cr" (card in credit) comes back negative: nothing is due, and the total check still adds up.
+        val totalDue = fields.amount(total) ?: equation?.second
         return ParsedStatement(
             statementDate = stmt,
             periodStart = periodStart,
-            dueDate = fields.date(due),
-            // A trailing "Cr" (card in credit) comes back negative: nothing is due, and the total check still adds up.
-            totalDuePaise = fields.amount(total) ?: equation?.second,
+            dueDate = dueDate,
+            totalDuePaise = totalDue,
             minDuePaise = fields.amount(min)?.coerceAtLeast(0),
-            openingPaise = fields.amount(opening) ?: equation?.first,
+            openingPaise = fields.amount(opening) ?: equation?.first ?: totalDue?.let { Text.summaryRow(lines, it) },
             last4 = Text.last4(text),
             lines = txns,
             rewards = rewards(lines, txns),
@@ -220,15 +224,19 @@ private class HeaderFields(private val lines: List<String>) {
             val label = labels.firstOrNull { l.contains(it) } ?: continue
             val start = l.indexOf(label)
 
-            // Column layout: several labels on this line, values on the next line in the same order.
+            // Column layout: several labels on this line, values in the same order on one of the next few lines
+            // (other text can sit in between, e.g. HDFC's address block). A period column holds two dates.
             val onLine = allLabelsOnLine(l)
             if (onLine.size >= 2) {
-                val next = lines.getOrNull(i + 1)
-                if (next != null) {
-                    val sameKind = onLine.filter { kindOf(it) == kindOf(label) }
-                    val idx = sameKind.indexOfFirst { start >= it.second && start < it.second + it.first.length }
-                    val values = if (kindOf(label) == Kind.DATE) Text.dateTokens(next) else Text.signedAmounts(next)
-                    if (idx >= 0 && values.size == sameKind.size) return values[idx]
+                val sameKind = onLine.filter { kindOf(it) == kindOf(label) }
+                val idx = sameKind.indexOfFirst { start >= it.second && start < it.second + it.first.length }
+                if (idx >= 0) {
+                    val widths = sameKind.map { width(it.first) }
+                    for (next in lines.drop(i + 1).take(3)) {
+                        if (allLabelsOnLine(next.lowercase()).isNotEmpty()) break
+                        val values = if (kindOf(label) == Kind.DATE) Text.dateTokens(next) else Text.signedAmounts(next)
+                        if (values.size == widths.sum()) return values[widths.take(idx).sum()]
+                    }
                 }
             }
 
@@ -253,6 +261,9 @@ private class HeaderFields(private val lines: List<String>) {
     private fun kindOf(p: Pair<String, Int>) = kindOf(p.first)
     private fun kindOf(label: String) = if (DATE_LABELS.any { label.contains(it) }) Kind.DATE else Kind.AMOUNT
 
+    /** How many values a column holds: a period is a from–to pair. */
+    private fun width(label: String) = if (label.endsWith("period")) 2 else 1
+
     private fun allLabelsOnLine(l: String): List<Pair<String, Int>> {
         val hits = mutableListOf<Pair<String, Int>>()
         for (lab in ALL.sortedByDescending { it.length }) {
@@ -268,8 +279,9 @@ private class HeaderFields(private val lines: List<String>) {
     }
 
     companion object {
-        val DATE_LABELS = listOf("date", "pay by", "due on")
+        val DATE_LABELS = listOf("date", "pay by", "due on", "period")
         val ALL = listOf(
+            "statement period", "billing period",
             "total amount due", "total dues", "total payment due", "total amount payable", "total outstanding", "closing balance",
             "minimum amount due", "minimum payment due", "min. amount due", "min amount due", "minimum due",
             "payment due date", "due date", "statement date", "statement generation date", "bill date",
@@ -353,6 +365,35 @@ object Text {
         return null
     }
 
+    /**
+     * The account summary as a bare row of figures whose headings sit elsewhere, e.g. HDFC's
+     * "5,237.48 5,365.48 15,975.82 0.00 15,848.00" (opening, credits, debits, charges, total) or Axis's
+     * "4,080.80 Dr 4,080.80 30.00 4,551.82 0.00 0.00 4,521.82 Dr". The row must end in [totalDue] and the
+     * figures between must add or take away to get there from the first one, which is the opening balance.
+     */
+    fun summaryRow(lines: List<String>, totalDue: Long): Long? {
+        for (l in lines) {
+            val v = amounts(l).mapNotNull { paise(it) }
+            if (v.size !in 4..8 || abs(v.last() - abs(totalDue)) > 100) continue
+            val middle = v.subList(1, v.size - 1)
+            val fits = (0 until (1 shl middle.size)).any { mask ->
+                val sum = v.first() + middle.withIndex().sumOf { (k, x) -> if (mask and (1 shl k) != 0) x else -x }
+                abs(sum - v.last()) <= 100
+            }
+            if (fits) return v.first()
+        }
+        return null
+    }
+
+    private val BARE_DATE = Regex("(?:(\\w+)\\s+)?date\\s*:\\s*($DATE_RX)", RegexOption.IGNORE_CASE)
+    private val NOT_STATEMENT = setOf("due", "payment", "birth", "transaction", "txn", "posting", "value", "expiry", "issue")
+
+    /** A lone "Date: 15/03/2026" next to the address (HDFC), when no statement date label is found. */
+    fun bareDate(lines: List<String>): LocalDate? =
+        lines.firstNotNullOfOrNull { l ->
+            BARE_DATE.findAll(l).firstOrNull { it.groupValues[1].lowercase() !in NOT_STATEMENT }?.let { date(it.groupValues[2]) }
+        }
+
     fun amounts(s: String): List<String> = AMOUNT.findAll(s).map { it.value }.toList()
 
     private val SIGNED_AMOUNT = Regex("($AMOUNT_RX)(\\s*(?:Cr|CR|cr)\\b)?")
@@ -382,6 +423,8 @@ object Text {
     fun last4(text: String): String? =
         Regex("(?:[Xx*•]{4}[ -]?){2,3}(\\d{4})\\b").find(text)?.groupValues?.get(1)
             ?: Regex("\\b\\d{4,8}[Xx*•]{4,8}(\\d{4})\\b").find(text)?.groupValues?.get(1)
+            // Diners' 14 digits: "3610 10XXXX 1352".
+            ?: Regex("\\b\\d{4} \\d{2}[Xx*•]{4,6} (\\d{4})\\b").find(text)?.groupValues?.get(1)
 }
 
 object Parsers {

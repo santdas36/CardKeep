@@ -214,6 +214,10 @@ object StatementSync {
         // Parse once to find the card, then again with that card's bank parser if it differs.
         val first = Parsers.forIssuer(issuer?.name ?: "")
         val firstParsed = first.parse(text, received)
+        // No total, no due date and no lines: another document from the bank (a savings account statement).
+        if (firstParsed.totalDuePaise == null && firstParsed.dueDate == null && firstParsed.lines.isEmpty()) {
+            return done("dismissed", "Not a card statement", "Not a card statement.")
+        }
         // A last 4 printed on the statement that matches none of your cards means it isn't for any of them.
         val card = forceCard ?: matchCard(issuerCards, cards, firstParsed.last4, text)
             ?: remembered?.takeIf { firstParsed.last4 == null || it.last4 == firstParsed.last4 }

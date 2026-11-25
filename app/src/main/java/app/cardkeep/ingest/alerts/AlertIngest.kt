@@ -11,6 +11,7 @@ import app.cardkeep.CardsApp
 import app.cardkeep.data.Card
 import app.cardkeep.data.Spend
 import app.cardkeep.data.SpendSource
+import app.cardkeep.ingest.TxnKind
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 
@@ -59,7 +60,9 @@ object AlertIngest {
             log.miss(sender.orEmpty(), body, "No ${alert.issuer ?: "matching"} card$digits in your wallet", source)
             return@withLock null
         }
-        log.record(alert, card, source, receivedAt)
+        log.record(alert, card, source, receivedAt)?.also {
+            if (it.kind == TxnKind.PAYMENT) app.repo.autoMarkPaid(card.id)
+        }
     }
 
     /** The wallet card an alert is about: same bank and last digits; without digits, the bank's only card. */

@@ -14,6 +14,21 @@ import java.io.File
  *   STMT_PROBE = "Issuer|path.pdf|ENVVAR_WITH_PASSWORD;..."
  */
 class StatementProbe {
+    /** STMT_TEXT = "Issuer|path.txt;..." — already-extracted statement text, parse result printed to stdout. */
+    @Test fun probeText() {
+        val spec = System.getenv("STMT_TEXT")
+        assumeTrue(!spec.isNullOrBlank())
+        for (entry in spec!!.split(';').filter { it.isNotBlank() }) {
+            val (issuer, path) = entry.split('|')
+            val p = Parsers.forIssuer(issuer).parse(File(path).readText())
+            val v = Parsers.validate(p)
+            println("=== ${File(path).name} parser=${Parsers.forIssuer(issuer).name} valid=${v.ok} ${v.note}")
+            println("stmt=${p.statementDate} start=${p.periodStart} due=${p.dueDate} total=${p.totalDuePaise} min=${p.minDuePaise} opening=${p.openingPaise} last4=${p.last4}")
+            println("lines=${p.lines.size} debits=${p.debits} credits=${p.credits}")
+            p.lines.forEach { println("  ${it.date} ${if (it.isCredit) "CR" else "DR"} ${it.amountPaise} | ${it.description}") }
+        }
+    }
+
     @Test fun probe() {
         val spec = System.getenv("STMT_PROBE")
         assumeTrue(!spec.isNullOrBlank())

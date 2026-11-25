@@ -14,7 +14,8 @@ import java.time.LocalDate
 
 class Repo(private val dao: CardDao, private val ledgerDao: LedgerDao, private val context: Context) {
 
-    val ledger = Ledger(ledgerDao) { cardId -> syncOutstandingFromStatement(cardId); checkSpends(cardId) }
+    // A payment alert can arrive before its statement does, so a new statement is checked against them too.
+    val ledger = Ledger(ledgerDao) { cardId -> syncOutstandingFromStatement(cardId); autoMarkPaid(cardId); checkSpends(cardId) }
 
     val spendLog = SpendLog(CardsApp.from(context).db.spends(), ledgerDao)
 
@@ -144,9 +145,9 @@ class Repo(private val dao: CardDao, private val ledgerDao: LedgerDao, private v
     }
 
     /** Records a payment against the cycle due on [dueEpochDay] and silences its reminders. */
-    suspend fun markPaid(cardId: Long, dueEpochDay: Long, amountPaise: Long) {
+    suspend fun markPaid(cardId: Long, dueEpochDay: Long, amountPaise: Long, paidOnEpochDay: Long = LocalDate.now().toEpochDay()) {
         val c = dao.card(cardId) ?: return
-        dao.insertPayment(Payment(cardId = cardId, dueEpochDay = dueEpochDay, paidOnEpochDay = LocalDate.now().toEpochDay(), amountPaise = amountPaise))
+        dao.insertPayment(Payment(cardId = cardId, dueEpochDay = dueEpochDay, paidOnEpochDay = paidOnEpochDay, amountPaise = amountPaise))
         dao.update(c.copy(outstandingPaise = (c.outstandingPaise - amountPaise).coerceAtLeast(0)))
         reschedule(cardId)
     }
@@ -177,6 +178,36 @@ class Repo(private val dao: CardDao, private val ledgerDao: LedgerDao, private v
         }
         dao.update(c)
         reschedule(cardId)
+    }
+
+    /**
+     * Marks a statement paid when a payment alert matches its bill: within ₹1 of the total due, or of what's
+     * left of it after earlier payments. The bill is the newest statement dated on or before the payment.
+     * Each alert is used once, so deleting a payment added this way doesn't bring it back.
+     */
+    suspend fun autoMarkPaid(cardId: Long) {
+        val card = dao.card(cardId) ?: return
+        if (!card.isCredit) return
+        val prefs = CardsApp.from(context).prefs
+        val used = prefs.autoPaidSpends
+        val alerts = CardsApp.from(context).db.spends().spendsFor(cardId)
+            .filter {
+                it.kind == app.cardkeep.ingest.TxnKind.PAYMENT && it.isCredit && it.currency == "INR" && it.id !in used &&
+                    it.source != SpendSource.MANUAL
+            }
+            .sortedBy { it.atMillis }
+        if (alerts.isEmpty()) return
+        val bills = ledgerDao.statements().filter { it.cardId == cardId && it.dueEpochDay != null && (it.totalDuePaise ?: 0) > 0 }
+        for (s in alerts) {
+            val bill = bills.filter { it.statementEpochDay <= s.epochDay }.maxByOrNull { it.statementEpochDay } ?: continue
+            val due = bill.dueEpochDay!!
+            val total = bill.totalDuePaise!!
+            val left = total - dao.paymentsFor(cardId).filter { it.dueEpochDay == due }.sumOf { it.amountPaise }
+            if (left <= 100) continue // already paid
+            if (kotlin.math.abs(s.amountPaise - total) > 100 && kotlin.math.abs(s.amountPaise - left) > 100) continue
+            markPaid(cardId, due, s.amountPaise, paidOnEpochDay = s.epochDay)
+            prefs.autoPaidSpends = prefs.autoPaidSpends + s.id
+        }
     }
 
     /** Re-checks the card's spends against its statements, and says so when some need a look. */

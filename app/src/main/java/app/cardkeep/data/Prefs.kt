@@ -15,6 +15,11 @@ class Prefs(context: Context) {
         get() = sp.getString("default_leads", "5,2,0") ?: "5,2,0"
         set(v) = sp.edit { putString("default_leads", v) }
 
+    /** Payment alerts (spend ids) already used to mark a bill paid, so each counts once. */
+    var autoPaidSpends: Set<Long>
+        get() = sp.getStringSet("auto_paid_spends", emptySet()).orEmpty().mapNotNull { it.toLongOrNull() }.toSet()
+        set(v) = sp.edit { putStringSet("auto_paid_spends", v.map { it.toString() }.toSet()) }
+
     /** Parser generation the stored statements were last refreshed with (see Ledger.PARSER_VERSION). */
     var parserVersion: Int
         get() = sp.getInt("parser_version", 1)
