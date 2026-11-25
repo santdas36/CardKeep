@@ -1,5 +1,6 @@
 package app.cardkeep.ui
 
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -22,7 +23,6 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.InputChip
-import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
@@ -35,6 +35,9 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.geometry.CornerRadius
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -167,7 +170,7 @@ fun CardSpendsScreen(cardId: Long, onBack: () -> Unit) {
     }
 }
 
-/** Spent so far, the period and how far into it we are, the latest available limit, and the category split. */
+/** Spent so far, when the cycle closes, spend by day, the latest available limit, and the category split. */
 @Composable
 private fun PeriodHeader(
     period: UnbilledPeriod,
@@ -181,32 +184,31 @@ private fun PeriodHeader(
     val count = list.count { TxnKind.spendSign(it.kind, it.isCredit) > 0 }
     val credits = list.filter { it.isCredit && it.currency == "INR" }.sumOf { it.amountPaise }
 
+    // Debit and prepaid count the calendar month, so their chart runs to its last day.
+    val end = period.end ?: period.start.withDayOfMonth(period.start.lengthOfMonth())
+
     Panel(Modifier.padding(horizontal = Gutter, vertical = 8.dp)) {
         Column {
-            Text("Spent so far", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
-            Text(Money.inr(spent.coerceAtLeast(0), true), style = MaterialTheme.typography.headlineMedium.tabular)
-            val end = period.end
-            if (period.isCycle && end != null) {
-                val total = ChronoUnit.DAYS.between(period.start, end).coerceAtLeast(1)
-                val gone = ChronoUnit.DAYS.between(period.start, today).coerceIn(0, total)
-                val left = ChronoUnit.DAYS.between(today, end)
-                Text(
-                    "${Dates.short(period.start)} – ${Dates.short(end)} · " + when {
-                        left <= 0 -> "closes today"
-                        left == 1L -> "closes tomorrow"
-                        else -> "closes in $left days"
-                    },
-                    style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-                Spacer(Modifier.height(10.dp))
-                LinearProgressIndicator(
-                    progress = { gone.toFloat() / total }, modifier = Modifier.fillMaxWidth().height(6.dp),
-                    trackColor = MaterialTheme.colorScheme.surfaceContainerHighest, drawStopIndicator = {},
-                )
-            } else {
-                Text("Since ${Dates.short(period.start)}", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Row(verticalAlignment = Alignment.Top) {
+                Column(Modifier.weight(1f)) {
+                    Text("Spent so far", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Text(Money.inr(spent.coerceAtLeast(0), true), style = MaterialTheme.typography.headlineMedium.tabular)
+                }
+                if (period.isCycle) {
+                    val left = ChronoUnit.DAYS.between(today, end)
+                    StatusPill(
+                        when {
+                            left <= 0 -> "Closes today"
+                            left == 1L -> "Closes tomorrow"
+                            else -> "Closes in $left days"
+                        },
+                        MaterialTheme.colorScheme.primary,
+                    )
+                }
             }
-            Spacer(Modifier.height(14.dp))
+            Spacer(Modifier.height(16.dp))
+            DailyBars(period.start, end, today, list)
+            Spacer(Modifier.height(16.dp))
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.Top) {
                 StatTile("Spends", "$count", Modifier.weight(1f))
                 StatTile("Back to card", if (credits > 0) Money.inr(credits, true) else "–", Modifier.weight(1f))
@@ -220,6 +222,39 @@ private fun PeriodHeader(
                 CategoryBreakdown(list, catById, onCategory)
             }
         }
+    }
+}
+
+/**
+ * One bar per day from [start] to [end], as tall as that day's spend against the biggest day. Days without
+ * spends are a short stub; days still to come are fainter. Dates of both ends sit underneath.
+ */
+@Composable
+private fun DailyBars(start: LocalDate, end: LocalDate, today: LocalDate, list: List<Spend>) {
+    val days = (ChronoUnit.DAYS.between(start, end) + 1).toInt().coerceIn(1, 62)
+    val byDay = list.groupBy { it.epochDay }.mapValues { (_, l) -> netSpent(l).coerceAtLeast(0) }
+    val max = byDay.values.maxOrNull()?.takeIf { it > 0 } ?: 1L
+    val todayIndex = ChronoUnit.DAYS.between(start, today)
+    val bar = MaterialTheme.colorScheme.primary
+    val stub = MaterialTheme.colorScheme.outlineVariant
+    Canvas(Modifier.fillMaxWidth().height(48.dp)) {
+        val slot = size.width / days
+        val w = (slot * 0.6f).coerceAtMost(10.dp.toPx())
+        val minH = 3.dp.toPx()
+        for (i in 0 until days) {
+            val v = byDay[start.toEpochDay() + i] ?: 0L
+            val h = if (v > 0) (size.height * v.toFloat() / max).coerceAtLeast(minH) else minH
+            val color = when {
+                i > todayIndex -> stub.copy(alpha = 0.45f)
+                v > 0 -> bar
+                else -> stub
+            }
+            drawRoundRect(color, Offset(i * slot + (slot - w) / 2, size.height - h), Size(w, h), CornerRadius(w / 2))
+        }
+    }
+    Row(Modifier.fillMaxWidth().padding(top = 6.dp)) {
+        Text(Dates.short(start), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.weight(1f))
+        Text(Dates.short(end), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
     }
 }
 

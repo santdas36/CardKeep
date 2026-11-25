@@ -68,8 +68,9 @@ fun CardSpendLog(card: Card, lastStatementDay: Long?, onOpenSpends: () -> Unit) 
     Panel(padded = false) {
         ListRow(
             Icons.AutoMirrored.Outlined.ReceiptLong, if (billed) "Unbilled spends" else "Spends so far",
-            subtitle = "Since ${Dates.short(period.start)}",
-            trailing = if (counted.isEmpty()) "No spends yet" else "${Money.inr(spent.coerceAtLeast(0), true)} · ${counted.size}",
+            subtitle = "Since ${Dates.short(period.start)}" +
+                if (counted.isEmpty()) "" else " · ${counted.size} spend${if (counted.size == 1) "" else "s"}",
+            trailing = if (counted.isEmpty()) "No spends yet" else Money.inr(spent.coerceAtLeast(0), true),
             chevron = true, onClick = onOpenSpends,
         )
         if (available != null) {
