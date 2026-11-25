@@ -184,7 +184,7 @@ fun DetailScreen(
     // Leaving with the card revealed: go back at once and let the home card turn it face up as it lands,
     // so the flip and the move happen together (only the home copy is drawn during the move).
     fun back() {
-        revealed?.let { r ->
+        revealed?.takeIf { SharedCardGate.allowed(c.id) }?.let { r ->
             FlipBack.start(FlipBack.Pending(c.id, r, StoredFields(s?.numberEnc != null, s?.expiryEnc != null, s?.cvvEnc != null, s?.holderEnc != null)))
         }
         revealed = null
@@ -274,7 +274,8 @@ fun DetailScreen(
                 progress,
                 onCopy = { label, value -> copySensitive(context, label, value) },
                 // The tapped card from the home stack grows into this one (and shrinks back on pop).
-                modifier = Modifier.sharedCard(c.id),
+                // Only when the card is on screen here and on Home; otherwise the screens just slide.
+                modifier = Modifier.onScreen(SharedCardGate::reportDetail).sharedCard(c.id, enabled = SharedCardGate.allowed(c.id)),
             )
             Spacer(Modifier.height(18.dp))
 

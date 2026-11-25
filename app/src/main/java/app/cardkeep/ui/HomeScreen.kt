@@ -673,7 +673,8 @@ private fun WalletStack(
                                 if (a > 0.004f) drawOutline(CardShape.createOutline(size, layoutDirection, this), Color.Black.copy(alpha = a))
                             }
                             // Grows into the detail card; only cards that are fully showing (they're the ones that open).
-                            .sharedCard(cw.card.id, enabled = isFront || opened)
+                            .onScreen { SharedCardGate.reportHome(cw.card.id, it && (isFront || opened)) }
+                            .sharedCard(cw.card.id, enabled = (isFront || opened) && SharedCardGate.allowed(cw.card.id))
                             .semantics {
                                 if (isFront && k > 1) customActions = listOf(CustomAccessibilityAction("Send to back") { toBack(cw.card.id); true })
                             }
@@ -714,7 +715,8 @@ private fun WalletStack(
                                 clip = false
                                 shadowElevation = baseShadow
                             }
-                            .sharedCard(cw.card.id, enabled = st.moreOpen)
+                            .onScreen { SharedCardGate.reportHome(cw.card.id, it && st.moreOpen) }
+                            .sharedCard(cw.card.id, enabled = st.moreOpen && SharedCardGate.allowed(cw.card.id))
                             .combinedClickable(
                                 enabled = st.moreOpen,
                                 onClickLabel = "Open card",
