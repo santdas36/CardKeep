@@ -186,14 +186,18 @@ private fun StatusCard(user: String, lastSyncAt: Long, lastResult: String, sync:
     }
 }
 
+/** The app password typed during setup, held in memory while you step away to Statement passwords. */
+private object TypedMailPassword { var value = "" }
+
 /** First run: connect, confirm banks, optional PDF details. */
 @Composable
 private fun Setup(ledger: Ledger, cards: List<CardEntity>, onConnected: () -> Unit, onImport: () -> Unit, onPasswords: () -> Unit) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     var user by rememberSaveable { mutableStateOf("") }
-    // Plain remember: a saveable value would sit in plaintext in the saved-instance Bundle.
-    var password by remember { mutableStateOf("") }
+    // Kept in memory only (a saveable value would sit in plaintext in the saved-instance Bundle), but outside
+    // this screen, so a trip to Statement passwords and back doesn't lose it. Cleared once saved.
+    var password by remember { mutableStateOf(TypedMailPassword.value) }
     var extra by rememberSaveable { mutableStateOf("") }
     var status by remember { mutableStateOf<String?>(null) }
     var busy by remember { mutableStateOf(false) }
@@ -204,6 +208,24 @@ private fun Setup(ledger: Ledger, cards: List<CardEntity>, onConnected: () -> Un
     // Only marks progress (the numbers light up as you go); every field stays usable at any time.
     var openedGoogle by rememberSaveable { mutableStateOf(false) }
     val canConnect = user.contains('@') && password.isNotBlank()
+
+    /** Tests the sign-in; if it works, saves it (this screen then shows the connected view) and syncs if [sync]. */
+    fun connect(sync: Boolean) {
+        scope.launch {
+            busy = true
+            status = "Connecting…"
+            val r = StatementSync.test("imap.gmail.com", 993, user, password)
+            status = r
+            busy = false
+            if (r.startsWith("Connected")) {
+                ledger.saveMailSource(user, password, "imap.gmail.com", 993, extra, 120, null)
+                SyncWorker.enable(context)
+                password = ""
+                TypedMailPassword.value = ""
+                if (sync) onConnected()
+            }
+        }
+    }
 
     Column(Modifier.padding(top = 8.dp)) {
         Text("Import from Gmail", style = MaterialTheme.typography.titleLarge)
@@ -229,10 +251,17 @@ private fun Setup(ledger: Ledger, cards: List<CardEntity>, onConnected: () -> Un
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email, autoCorrectEnabled = false),
                     )
                     OutlinedTextField(
-                        password, { password = it }, label = { Text("App password") }, placeholder = { Text("16 letters") }, singleLine = true,
+                        password, { password = it; TypedMailPassword.value = it; status = null }, label = { Text("App password") },
+                        placeholder = { Text("16 letters") }, singleLine = true,
                         visualTransformation = PasswordVisualTransformation(), modifier = Modifier.fillMaxWidth(),
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password, autoCorrectEnabled = false),
                     )
+                    // Check the sign-in and keep it, without syncing yet (statement passwords can come first).
+                    FilledTonalButton(onClick = { connect(false) }, enabled = !busy && canConnect) {
+                        Text(if (busy) "Testing…" else "Test and save")
+                    }
+                    // The one result line for both buttons, next to the fields it's about.
+                    status?.let { Text(it, style = MaterialTheme.typography.bodySmall, color = if (it.startsWith("Connected")) Good else Danger) }
                 }
             }
             Step(3, "Add statement passwords", "Name and birth date, to unlock PDFs", reached = canConnect) {
@@ -259,25 +288,10 @@ private fun Setup(ledger: Ledger, cards: List<CardEntity>, onConnected: () -> Un
         )
     }
 
-    status?.let { Text(it, style = MaterialTheme.typography.bodyMedium, color = if (it.startsWith("Connected")) Good else Danger) }
     Button(
         enabled = !busy && canConnect,
         modifier = Modifier.fillMaxWidth().height(48.dp),
-        onClick = {
-            scope.launch {
-                busy = true
-                status = "Connecting…"
-                val r = StatementSync.test("imap.gmail.com", 993, user, password)
-                if (r.startsWith("Connected")) {
-                    ledger.saveMailSource(user, password, "imap.gmail.com", 993, extra, 120, null)
-                    SyncWorker.enable(context)
-                    password = ""
-                    onConnected()
-                }
-                status = r
-                busy = false
-            }
-        },
+        onClick = { connect(true) },
     ) { Text(if (busy) "Connecting…" else "Connect and sync") }
 
     TextButton(onClick = onImport, modifier = Modifier.fillMaxWidth()) {
