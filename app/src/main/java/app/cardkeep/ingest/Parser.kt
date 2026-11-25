@@ -245,6 +245,8 @@ private class HeaderFields(private val lines: List<String>) {
                         if (allLabelsOnLine(next.lowercase()).isNotEmpty()) break
                         val values = if (kindOf(label) == Kind.DATE) Text.dateTokens(next) else Text.signedAmounts(next)
                         if (values.size == widths.sum()) return values[widths.take(idx).sum()]
+                        // Only lines without figures may sit in between; a row of other figures ends the search.
+                        if (values.isNotEmpty()) break
                     }
                 }
             }
