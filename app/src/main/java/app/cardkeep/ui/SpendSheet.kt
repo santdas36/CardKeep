@@ -23,6 +23,13 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
+import androidx.compose.material3.ModalBottomSheet
+import androidx.compose.material3.rememberModalBottomSheetState
+import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
+import androidx.compose.material.icons.filled.Search
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.layout.Column
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.RadioButton
@@ -94,6 +101,7 @@ fun SpendSheet(
     var applyAll by remember { mutableStateOf(false) }
     var note by remember { mutableStateOf(spend?.note ?: "") }
     var confirmDelete by remember { mutableStateOf(false) }
+    var pickingCard by remember { mutableStateOf(false) }
 
     val paise = Money.parse(amount)
     val valid = paise != null && paise > 0 && cardId != null && date != null
@@ -139,18 +147,25 @@ fun SpendSheet(
         }
 
         Text("Card", style = MaterialTheme.typography.titleSmall, modifier = Modifier.padding(top = 6.dp))
-        if (pickable.isEmpty()) {
-            Text("Add a card first, then log spends on it.", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
-        } else Panel(padded = false) {
-            pickable.forEachIndexed { i, c ->
-                if (i > 0) RowDivider()
+        val chosen = cards.firstOrNull { it.id == cardId }
+        // Alerts are matched to a card by bank and last digits, so there's nothing to pick for them.
+        val fromAlert = spend != null && spend.source != SpendSource.MANUAL
+        when {
+            pickable.isEmpty() && chosen == null ->
+                Text("Add a card first, then log spends on it.", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            else -> Panel(padded = false) {
                 Row(
-                    Modifier.fillMaxWidth().clickable { cardId = c.id }.heightIn(min = 60.dp).padding(horizontal = 16.dp),
+                    Modifier.fillMaxWidth()
+                        .then(if (fromAlert) Modifier else Modifier.clickable { pickingCard = true })
+                        .heightIn(min = 60.dp).padding(horizontal = 16.dp),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
-                    BankBadge(c.issuer, size = 34.dp)
-                    Text("${c.nickname} •• ${c.last4}", style = MaterialTheme.typography.bodyLarge, modifier = Modifier.weight(1f).padding(start = 14.dp))
-                    RadioButton(cardId == c.id, null)
+                    chosen?.let { BankBadge(it.issuer, size = 34.dp) }
+                    Column(Modifier.weight(1f).padding(start = 14.dp)) {
+                        Text(chosen?.let { "${it.nickname} •• ${it.last4}" } ?: "Choose a card", style = MaterialTheme.typography.bodyLarge)
+                        if (fromAlert) Text("Matched from the bank's alert", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
+                    if (!fromAlert) Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, "Change card", tint = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
             }
         }
@@ -185,6 +200,8 @@ fun SpendSheet(
         if (spend != null) InlineAction("Delete this spend") { confirmDelete = true }
     }
 
+    if (pickingCard) CardPickerSheet(pickable, cardId, onPick = { cardId = it; pickingCard = false }, onDismiss = { pickingCard = false })
+
     if (confirmDelete && spend != null) {
         ConfirmDialog(
             title = "Delete this spend?",
@@ -192,6 +209,57 @@ fun SpendSheet(
             onDismiss = { confirmDelete = false },
             onConfirm = { confirmDelete = false; scope.launch { log.delete(spend); onDismiss() } },
         )
+    }
+}
+
+/** Choose one card; a search box shows up once the wallet is long enough to need one. */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun CardPickerSheet(cards: List<Card>, selected: Long?, onPick: (Long) -> Unit, onDismiss: () -> Unit) {
+    if (LocalLocked.current) return
+    var query by remember { mutableStateOf("") }
+    val q = query.trim().lowercase()
+    val shown = cards.filter {
+        q.isEmpty() || it.nickname.lowercase().contains(q) || it.issuer.lowercase().contains(q) || it.last4.contains(q)
+    }
+    ModalBottomSheet(onDismissRequest = onDismiss, sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)) {
+        Column(Modifier.padding(horizontal = 20.dp).padding(bottom = 24.dp)) {
+            Text("Choose a card", style = MaterialTheme.typography.titleLarge)
+            if (cards.size > 6) {
+                OutlinedTextField(
+                    query, { query = it }, singleLine = true, placeholder = { Text("Name, bank or last 4 digits") },
+                    leadingIcon = { Icon(Icons.Filled.Search, null) },
+                    modifier = Modifier.fillMaxWidth().padding(top = 12.dp),
+                )
+            }
+            Panel(padded = false, modifier = Modifier.padding(top = 12.dp).heightIn(max = 480.dp)) {
+                Column(Modifier.verticalScroll(rememberScrollState())) {
+                    shown.forEachIndexed { i, c ->
+                        if (i > 0) RowDivider()
+                        Row(
+                            Modifier.fillMaxWidth().clickable { onPick(c.id) }.heightIn(min = 60.dp).padding(horizontal = 16.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            BankBadge(c.issuer, size = 34.dp)
+                            Column(Modifier.weight(1f).padding(start = 14.dp)) {
+                                Text("${c.nickname} •• ${c.last4}", style = MaterialTheme.typography.bodyLarge, maxLines = 1)
+                                Text(
+                                    "${c.issuer} · ${app.cardkeep.data.CardKind.label(c.kind)}",
+                                    style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1,
+                                )
+                            }
+                            RadioButton(selected == c.id, null)
+                        }
+                    }
+                    if (shown.isEmpty()) {
+                        Text(
+                            "No card matches \"$query\".", style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(16.dp),
+                        )
+                    }
+                }
+            }
+        }
     }
 }
 
