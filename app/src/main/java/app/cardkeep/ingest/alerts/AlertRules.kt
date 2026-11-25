@@ -88,7 +88,10 @@ internal object AlertRules {
         // ---- Indian Bank (debit)
         r("Indian Bank", SPEND, false, "$AMTC spent using Indian Bank Debit Card $XL4 at $M on (?<d>$DMY$TIME)\\s*hr\\.?(?:\\s*Avl Bal\\s*$LIM)?", "debit"),
 
-        // ---- Best effort, from reference shapes (unverified)
+        // ---- Best effort, from other open-source parsers' test messages (not yet seen in a real inbox)
+        r("BOB Card", SPEND, false, "(?:ALERT:?\\s*)?$AMTC (?:is )?spent on your BOBCARD ending $XL4 at $M on (?<d>$DMY$TIME)(?:.*?Available credit limit is $LIM)?", "credit"),
+        r("HSBC", SPEND, false, "Your HSBC credit\\s*card $XL4 used at $M for $AMTC on (?<d>$DMY)", "credit"),
+        r("Punjab National Bank", SPEND, false, "debited with $AMTC,?\\s*(?<d>$DMY$TIME) thru card $XL4", "debit", strict = true),
         r("ICICI Bank", SPEND, false, "$AMTC spent using ICICI Bank Card $XL4 on (?<d>$DMON) on $M\\.\\s*Avl Limit:?\\s*$LIM"),
         r("ICICI Bank", SPEND, false, "$AMTC spent using ICICI Bank Card $XL4 on (?<d>$DMON) on $M\\.?\\s*\\z"),
         r("IDFC FIRST", SPEND, false, "$AMTC spent on your IDFC FIRST Bank Credit Card ending $XL4 at $M on (?<d>$DMON)(?:.*?Avbl?\\s*Limit:?\\s*$LIM)?", "credit"),
@@ -107,7 +110,7 @@ internal object AlertRules {
         // OTP and codes
         "\\b(?:otp|one[- ]time (?:password|pin)|verification code|passcode|cvv)\\b",
         // promos
-        "\\boffers?\\b|\\bpromo|\\bvouchers?\\b|\\bcoupons?\\b|gift (?:card|code|voucher)|apply now|pre-?approved|congratulations|t&c",
+        "\\boffers?\\b|\\bpromo|\\bvouchers?\\b|\\bcoupons?\\b|gift (?:card|code|voucher)|apply now|pre-?approved|t&c",
         // dues, reminders, statements
         "\\bis due\\b|(?:total|min(?:imum)?|amount|amt)\\.?\\s*(?:amt\\.?\\s*)?due|\\bdue (?:on|by|date)\\b|\\bpay (?:by|before)\\b|reminder|statement|overdue|\\bunpaid\\b",
         // scheduled / future
@@ -123,8 +126,11 @@ internal object AlertRules {
         "dispute|\\bloan\\b|disburs|payment request|collect request|requested (?:you )?(?:to )?pay",
     ).map { Regex(it, RegexOption.IGNORE_CASE) }
 
+    // Links can contain words like "Dispute" or "offers" (e.g. "Report at sbicard.com/Dispute").
+    private val link = Regex("\\bhttps?://\\S+|\\b[a-z0-9-]+(?:\\.[a-z0-9-]+)+/\\S*")
+
     fun isRejected(text: String): Boolean {
-        val t = withoutOtp.replace(text.lowercase(), " ")
+        val t = withoutOtp.replace(link.replace(text.lowercase(), " "), " ")
         return reject.any { it.containsMatchIn(t) }
     }
 }

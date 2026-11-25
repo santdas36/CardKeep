@@ -53,7 +53,8 @@ class AlertParserTest {
         assertEquals("Indian Bank", AlertParser.issuer("AD-INDBNK-S", "x"))
         assertEquals("ICICI Bank", AlertParser.issuer("AD-ICICIB-S", "x"))
         assertEquals("IndusInd", AlertParser.issuer("AD-INDUSB-S", "x"))
-        assertNull(AlertParser.issuer("AD-SBIINB-S", "nothing here"))
+        assertEquals("State Bank of India", AlertParser.issuer("AD-SBIINB-S", "nothing here"))
+        assertNull(AlertParser.issuer("AD-ZOMATO-S", "nothing here"))
     }
 
     @Test fun issuerFromBodyOnly() {
@@ -519,5 +520,72 @@ class AlertParserTest {
         rejected("Sent Rs.500.00\nFrom HDFC Bank A/C *1234\nTo SOMEONE\nOn 05/11/26\nRef 612345678901")
         rejected("Rs.5,000.00 credited to HDFC Bank A/c XX1234 on 05-11-26 from VPA x@ybl (UPI 612345678901)")
         rejected("A/c *1234 debited Rs.500.00 on 05-11-26 to X. UPI Ref 612345678901", "AD-INDBNK-S")
+    }
+
+    // ---- more Indian banks (formats from other open-source parsers' tests; synthetic values)
+
+    @Test fun bobCardSpend() {
+        val r = ok("AX-BOBCRD-S", "ALERT: INR 1,250.50 is spent on your BOBCARD ending 4321 at AMAZON on 05-11-2026 14:22:10. Available credit limit is Rs 48,749.50 -Bank of Baroda")
+        assertEquals("BOB Card", r.issuer)
+        assertEquals("4321", r.last4)
+        assertEquals(125050L, r.amountPaise)
+        assertEquals("AMAZON", r.merchant)
+        assertEquals(4874950L, r.availablePaise)
+        assertEquals(ist(2026, 11, 5, 14, 22, 10), r.atMillis)
+    }
+
+    @Test fun hsbcCreditCardSpend() {
+        val r = ok("JD-HSBCIN-S", "Your HSBC creditcard xxxxx9876 used at SWIGGY for INR 345.00 on 05-11-26.")
+        assertEquals("HSBC", r.issuer)
+        assertEquals("9876", r.last4)
+        assertEquals(34500L, r.amountPaise)
+        assertEquals("SWIGGY", r.merchant)
+        assertEquals("credit", r.cardType)
+    }
+
+    @Test fun pnbDebitCardThruCard() {
+        val r = ok("VM-PNBSMS-S", "A/c XX1111 debited with Rs.2000.00,05-11-2026 10:15:00 thru card XX2222 . Bal 5000.00 CR. If not done, fwd SMS to 9999999999 to block card")
+        assertEquals("Punjab National Bank", r.issuer)
+        assertEquals("2222", r.last4)
+        assertEquals(200000L, r.amountPaise)
+        assertEquals("debit", r.cardType)
+    }
+
+    @Test fun newSenderHeadersMapToBanks() {
+        assertEquals("Bank of Baroda", AlertParser.issuer("AD-BOBTXN-S", "x"))
+        assertEquals("BOB Card", AlertParser.issuer("AD-BOBCRD-S", "x"))
+        assertEquals("SBI Card", AlertParser.issuer("AD-SBICRD-S", "x"))
+        assertEquals("State Bank of India", AlertParser.issuer("AD-SBIUPI-S", "x"))
+        assertEquals("Canara Bank", AlertParser.issuer("AD-CANBNK-S", "x"))
+        assertEquals("Union Bank of India", AlertParser.issuer("AD-UNIONB-S", "x"))
+        assertEquals("CSB Bank", AlertParser.issuer("AD-JTEDGE-S", "x"))
+        assertEquals("Utkarsh Bank", AlertParser.issuer("AD-UTKSPR-S", "x"))
+    }
+
+    @Test fun bankOfIndiaNotConfusedWithLongerNames() {
+        assertEquals("Central Bank of India", AlertParser.issuer(null, "Rs 100 spent on Central Bank of India Debit Card XX1234"))
+        assertEquals("Union Bank of India", AlertParser.issuer(null, "Rs 100 spent on Union Bank of India Debit Card XX1234"))
+        assertEquals("Bank of India", AlertParser.issuer(null, "Rs 100 spent on Bank of India Debit Card XX1234"))
+    }
+
+    @Test fun kotakCreditCardViaGeneric() {
+        val r = ok("AD-KOTAKB-S", "Rs.499.00 spent on Kotak Credit Card x5678 at NETFLIX on 05/11/2026. Avl limit Rs.20,000.00")
+        assertEquals("Kotak", r.issuer)
+        assertEquals("5678", r.last4)
+        assertEquals(49900L, r.amountPaise)
+        assertEquals(TxnKind.SPEND, r.kind)
+    }
+
+    @Test fun linkWordsDontReject() {
+        val r = ok("JD-SBICRD-S", "Rs.1,234.00 spent on your SBI Credit Card ending 4321 at AMAZON on 05/11/26. Trxn. not done by you? Report at https://sbicard.com/Dispute")
+        assertEquals("SBI Card", r.issuer)
+        assertEquals(123400L, r.amountPaise)
+    }
+
+    @Test fun cashbackWithCongratulations() {
+        val r = ok("AD-AXISBK-S", "Congratulations! Cashback of INR 150 has been credited to your Airtel Axis Bank Credit Card XX4321 towards your spends during JUL'26.")
+        assertEquals(TxnKind.CASHBACK, r.kind)
+        assertEquals(15000L, r.amountPaise)
+        rejected("Congratulations on your first transaction with the AXIS BANK Credit Card! You've unlocked a welcome benefit of Amazon eVoucher worth INR 500.", sender = "AD-AXISBK-S")
     }
 }

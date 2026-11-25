@@ -66,6 +66,14 @@ object Issuers {
         Issuer("South Indian Bank", 0xFF9E1B32, 20),
         Issuer("Saraswat Bank", 0xFF7A2E8E, 20),
         Issuer("Abhyudaya Bank", 0xFF2E5E9E, 20),
+        Issuer("Punjab & Sind Bank", 0xFF1E7B3C, 20),
+        Issuer("Bandhan Bank", 0xFFE2231A, 20),
+        Issuer("Equitas Bank", 0xFF2C5AA0, 20),
+        Issuer("Utkarsh Bank", 0xFF6B2C91, 20),
+        Issuer("Airtel Payments Bank", 0xFFE40000, 20),
+        Issuer("Jio Payments Bank", 0xFF0F3CC9, 20),
+        Issuer("India Post Payments Bank", 0xFFC8102E, 20),
+        Issuer("NSDL Payments Bank", 0xFF1D3F8F, 20),
         Issuer("Other", 0xFF455A64, 20),
     )
 
