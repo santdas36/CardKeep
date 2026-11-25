@@ -27,7 +27,7 @@ android {
         minSdk = 26
         targetSdk = 36
         versionCode = commitCount
-        versionName = "1.0.0" // bump by hand for releases
+        versionName = "1.1.0" // bump by hand for releases
         androidResources { localeFilters += "en" }
     }
 
