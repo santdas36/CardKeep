@@ -37,6 +37,8 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowLeft
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.automirrored.outlined.ReceiptLong
+import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Refresh
@@ -85,6 +87,8 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import app.cardkeep.data.Category
 import app.cardkeep.data.Ledger
+import app.cardkeep.data.Spend
+import app.cardkeep.data.SpendReview
 import app.cardkeep.data.Statement
 import app.cardkeep.data.Txn
 import app.cardkeep.domain.CardWithDue
@@ -96,20 +100,25 @@ import app.cardkeep.ingest.TxnKind
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import java.time.Instant
 import java.time.LocalDate
 import java.time.YearMonth
+import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 import java.util.Locale
 import kotlin.math.abs
 import kotlin.math.roundToInt
 
-/** Net spending of a list: purchases and fees, less refunds. Payments and cashback are left out. */
-private fun spentOf(list: List<Txn>) = list.sumOf { TxnKind.spendSign(it.kind, it.isCredit) * it.amountPaise }
+/** Net spending of a list in rupees: purchases and fees, less refunds. Payments, cashback and foreign spends are left out. */
+private fun spentOf(list: List<Spend>) =
+    list.filter { it.currency == "INR" }.sumOf { TxnKind.spendSign(it.kind, it.isCredit) * it.amountPaise }
+
+private val timeFormat = DateTimeFormatter.ofPattern("h:mm a", Locale.ENGLISH)
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
 fun ActivityScreen(
-    txns: List<Txn>,
+    spends: List<Spend>,
     cards: List<CardWithDue>,
     categories: List<Category>,
     statements: List<Statement>,
@@ -120,6 +129,7 @@ fun ActivityScreen(
     onSync: () -> Unit,
     onSetupMail: () -> Unit,
     onOpenStatement: (Long) -> Unit,
+    onOpenTracking: () -> Unit,
     needsYou: Int = 0,
     onImport: () -> Unit = {},
     bottomBar: @Composable () -> Unit,
@@ -133,8 +143,11 @@ fun ActivityScreen(
     var month by rememberSaveable { mutableStateOf(YearMonth.now().toString()) }
     var showFilters by remember { mutableStateOf(false) }
     var menu by remember { mutableStateOf(false) }
-    var open by remember { mutableStateOf<Txn?>(null) }
+    var open by remember { mutableStateOf<Spend?>(null) }
+    var adding by remember { mutableStateOf(false) }
+    var flaggedOnly by rememberSaveable { mutableStateOf(false) }
     val ym = YearMonth.parse(month)
+    val anyFlagged = remember(spends) { spends.any { SpendReview.flagged(it.review) } }
 
     val cardById = remember(cards) { cards.associateBy { it.card.id } }
     val catById = remember(categories) { categories.associateBy { it.id } }
@@ -148,21 +161,26 @@ fun ActivityScreen(
         if (catById.isNotEmpty() && catFilter.any { it !in catById }) catFilter = ArrayList(catFilter.filter { it in catById })
     }
 
+    // Once nothing is flagged any more the chip is gone, so the filter has to go with it.
+    LaunchedEffect(anyFlagged) { if (!anyFlagged) flaggedOnly = false }
+
     // Locked: sheets and menus are windows above the lock cover, so close them.
     val locked = LocalLocked.current
-    LaunchedEffect(locked) { if (locked) { showFilters = false; open = null; menu = false } }
+    LaunchedEffect(locked) { if (locked) { showFilters = false; open = null; adding = false; menu = false } }
     // Back closes the search before switching back to the Cards tab.
     androidx.activity.compose.BackHandler(!locked && LocalTabSelected.current && searching) { searching = false; query = "" }
 
-    fun matches(t: Txn, m: YearMonth, q: String) =
-        YearMonth.from(LocalDate.ofEpochDay(t.epochDay)) == m &&
-            (cardFilter.isEmpty() || t.cardId in cardFilter) &&
-            (catFilter.isEmpty() || t.categoryId in catFilter) &&
-            (q.isEmpty() || t.merchant.lowercase().contains(q) || t.note.lowercase().contains(q))
+    fun matches(s: Spend, m: YearMonth, q: String) =
+        YearMonth.from(LocalDate.ofEpochDay(s.epochDay)) == m &&
+            (cardFilter.isEmpty() || s.cardId in cardFilter) &&
+            (catFilter.isEmpty() || s.categoryId in catFilter) &&
+            (q.isEmpty() || s.merchant.lowercase().contains(q) || s.note.lowercase().contains(q))
 
     val q = query.trim().lowercase()
-    val filtered = remember(txns, q, cardFilter, catFilter, month) { txns.filter { matches(it, ym, q) } }
-    val previous = remember(txns, q, cardFilter, catFilter, month) { txns.filter { matches(it, ym.minusMonths(1), q) } }
+    val filtered = remember(spends, q, cardFilter, catFilter, flaggedOnly, month) {
+        spends.filter { matches(it, ym, q) && (!flaggedOnly || SpendReview.flagged(it.review)) }.sortedByDescending { it.atMillis }
+    }
+    val previous = remember(spends, q, cardFilter, catFilter, month) { spends.filter { matches(it, ym.minusMonths(1), q) } }
     val review = statements.filter { it.status == Ledger.STATUS_REVIEW }
 
     val exporter = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("text/csv")) { uri ->
@@ -170,6 +188,7 @@ fun ActivityScreen(
     }
 
     val actions: @Composable () -> Unit = {
+                    IconButton(onClick = { adding = true }) { Icon(Icons.Filled.Add, "Add a spend") }
                     IconButton(onClick = { searching = !searching; if (!searching) query = "" }) {
                         Icon(if (searching) Icons.Filled.Close else Icons.Filled.Search, if (searching) "Close search" else "Search")
                     }
@@ -213,9 +232,6 @@ fun ActivityScreen(
                             modifier = Modifier.fillMaxWidth().padding(horizontal = Gutter, vertical = 4.dp),
                         )
                     }
-                    if (!mailConfigured && txns.isEmpty()) {
-                        Prompt(Icons.Outlined.Mail, "Bring in your statements", "Connect Gmail, or import a PDF", MaterialTheme.colorScheme.primaryContainer, onSetupMail)
-                    }
                     if (needsYou > 0) {
                         Prompt(
                             Icons.Outlined.WarningAmber,
@@ -231,59 +247,62 @@ fun ActivityScreen(
                         ) { onOpenStatement(review.minBy { it.statementEpochDay }.id) }
                     }
 
-                    // Month + filters on one row.
-                    Row(Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
-                        IconButton(onClick = { month = ym.minusMonths(1).toString() }) { Icon(Icons.AutoMirrored.Filled.KeyboardArrowLeft, "Previous month") }
-                        Text(
-                            ym.format(DateTimeFormatter.ofPattern(if (ym.year == YearMonth.now().year) "MMMM" else "MMM yyyy", Locale.ENGLISH)),
-                            style = MaterialTheme.typography.titleMedium,
-                        )
-                        IconButton(onClick = { month = ym.plusMonths(1).toString() }, enabled = ym < YearMonth.now()) {
-                            Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, "Next month")
-                        }
-                        Spacer(Modifier.weight(1f))
-                        val active = cardFilter.size + catFilter.size
-                        TextButton(onClick = { showFilters = true }, contentPadding = PaddingValues(start = 12.dp, end = 12.dp)) {
-                            BadgedBox(badge = { if (active > 0) Badge { Text("$active") } }) { Icon(Icons.Outlined.FilterList, null) }
-                            Text("  Filter")
-                        }
-                    }
-                    if (cardFilter.isNotEmpty() || catFilter.isNotEmpty()) {
-                        FlowRow(Modifier.padding(horizontal = Gutter), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                            cardFilter.forEach { id ->
-                                cardById[id]?.let { cw ->
-                                    InputChip(
-                                        selected = true, onClick = { cardFilter = ArrayList(cardFilter - id) },
-                                        label = { Text("${cw.card.nickname} ${cw.card.last4}") },
-                                        trailingIcon = { Icon(Icons.Filled.Close, "Remove", Modifier.size(16.dp)) },
-                                    )
-                                }
+                    if (spends.isNotEmpty()) {
+                        // Month + filters on one row.
+                        Row(Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+                            IconButton(onClick = { month = ym.minusMonths(1).toString() }) { Icon(Icons.AutoMirrored.Filled.KeyboardArrowLeft, "Previous month") }
+                            Text(
+                                ym.format(DateTimeFormatter.ofPattern(if (ym.year == YearMonth.now().year) "MMMM" else "MMM yyyy", Locale.ENGLISH)),
+                                style = MaterialTheme.typography.titleMedium,
+                            )
+                            IconButton(onClick = { month = ym.plusMonths(1).toString() }, enabled = ym < YearMonth.now()) {
+                                Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, "Next month")
                             }
-                            catFilter.forEach { id ->
-                                catById[id]?.let { c ->
-                                    InputChip(
-                                        selected = true, onClick = { catFilter = ArrayList(catFilter - id) }, label = { Text(c.name) },
-                                        trailingIcon = { Icon(Icons.Filled.Close, "Remove", Modifier.size(16.dp)) },
-                                    )
-                                }
+                            Spacer(Modifier.weight(1f))
+                            val active = cardFilter.size + catFilter.size
+                            TextButton(onClick = { showFilters = true }, contentPadding = PaddingValues(start = 12.dp, end = 12.dp)) {
+                                BadgedBox(badge = { if (active > 0) Badge { Text("$active") } }) { Icon(Icons.Outlined.FilterList, null) }
+                                Text("  Filter")
                             }
                         }
-                    }
+                        if (anyFlagged || cardFilter.isNotEmpty() || catFilter.isNotEmpty()) {
+                            FlowRow(Modifier.padding(horizontal = Gutter), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                if (anyFlagged) {
+                                    FilterChip(
+                                        selected = flaggedOnly, onClick = { flaggedOnly = !flaggedOnly }, label = { Text("Needs a look") },
+                                        leadingIcon = { Icon(Icons.Outlined.WarningAmber, null, Modifier.size(18.dp)) },
+                                    )
+                                }
+                                cardFilter.forEach { id ->
+                                    cardById[id]?.let { cw ->
+                                        InputChip(
+                                            selected = true, onClick = { cardFilter = ArrayList(cardFilter - id) },
+                                            label = { Text("${cw.card.nickname} ${cw.card.last4}") },
+                                            trailingIcon = { Icon(Icons.Filled.Close, "Remove", Modifier.size(16.dp)) },
+                                        )
+                                    }
+                                }
+                                catFilter.forEach { id ->
+                                    catById[id]?.let { c ->
+                                        InputChip(
+                                            selected = true, onClick = { catFilter = ArrayList(catFilter - id) }, label = { Text(c.name) },
+                                            trailingIcon = { Icon(Icons.Filled.Close, "Remove", Modifier.size(16.dp)) },
+                                        )
+                                    }
+                                }
+                            }
+                        }
 
-                    // Shown even for an empty month (as ₹0) once there's any data; with none, the prompt above says what to do.
-                    if (txns.isNotEmpty()) {
                         SpendSummary(filtered, previous, ym, catById) { id -> if (id !in catFilter) catFilter = ArrayList(catFilter + id) }
                     }
                 }
 
                 if (filtered.isEmpty()) {
                     item {
-                        Text(
-                            when {
-                                txns.isEmpty() -> "No transactions yet. They arrive with your statements."
-                                q.isNotEmpty() || cardFilter.isNotEmpty() || catFilter.isNotEmpty() -> "Nothing matches in ${ym.month.name.lowercase().replaceFirstChar(Char::uppercase)}."
-                                else -> "No transactions in ${ym.month.name.lowercase().replaceFirstChar(Char::uppercase)}."
-                            },
+                        if (spends.isEmpty()) NoSpends(onOpenTracking) { adding = true }
+                        else Text(
+                            if (q.isNotEmpty() || cardFilter.isNotEmpty() || catFilter.isNotEmpty() || flaggedOnly) "Nothing matches in ${ym.month.name.lowercase().replaceFirstChar(Char::uppercase)}."
+                            else "No spends in ${ym.month.name.lowercase().replaceFirstChar(Char::uppercase)}.",
                             style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant,
                             modifier = Modifier.padding(horizontal = 20.dp, vertical = 24.dp),
                         )
@@ -298,7 +317,7 @@ fun ActivityScreen(
                             if (daySpent > 0) Text(Money.inr(daySpent, true), style = MaterialTheme.typography.labelLarge.tabular, color = MaterialTheme.colorScheme.onSurfaceVariant)
                         }
                     }
-                    items(list, key = { it.id }) { t -> TxnRow(t, cardById[t.cardId], catById[t.categoryId]) { open = t } }
+                    items(list, key = { it.id }) { s -> SpendRow(s, cardById[s.cardId], catById[s.categoryId]) { open = s } }
                 }
             }
             Box(Modifier.align(Alignment.BottomCenter)) { bottomBar() }
@@ -335,20 +354,32 @@ fun ActivityScreen(
                     }
                 }
                 Button(onClick = { showFilters = false }, modifier = Modifier.fillMaxWidth().padding(top = 20.dp)) {
-                    Text("Show ${filtered.size} transaction${if (filtered.size == 1) "" else "s"}")
+                    Text("Show ${filtered.size} spend${if (filtered.size == 1) "" else "s"}")
                 }
             }
         }
     }
 
-    open?.takeIf { !locked }?.let { t ->
-        TxnSheet(
-            txn = t, card = cardById[t.cardId], categories = categories,
-            statement = statements.firstOrNull { it.id == t.statementId },
-            onDismiss = { open = null },
-            onOpenStatement = { open = null; onOpenStatement(it) },
-            onSave = { catId, pattern, kind, note -> open = null; scope.launch { saveTxnEdits(ledger, t, catId, pattern, kind, note) } },
+    if (!locked && (adding || open != null)) {
+        SpendSheet(
+            spend = open, cards = cards.map { it.card }, categories = categories,
+            onDismiss = { open = null; adding = false },
+            defaultCardId = cardFilter.singleOrNull(),
         )
+    }
+}
+
+/** Nothing logged yet: what the log is for, and the two ways to start filling it. */
+@Composable
+private fun NoSpends(onOpenTracking: () -> Unit, onAdd: () -> Unit) {
+    Column(Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 32.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        Text("Keep track of what you spend", style = MaterialTheme.typography.titleMedium)
+        Text(
+            "Your bank's SMS and message alerts can fill this in on their own, so every card spend is logged as it happens and checked against your statement. Or add spends yourself.",
+            style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        Button(onClick = onOpenTracking, modifier = Modifier.fillMaxWidth().padding(top = 6.dp).height(48.dp)) { Text("Turn on spend tracking") }
+        TextButton(onClick = onAdd, modifier = Modifier.fillMaxWidth()) { Text("Add a spend") }
     }
 }
 
@@ -376,7 +407,7 @@ private fun Prompt(icon: androidx.compose.ui.graphics.vector.ImageVector, title:
  */
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
-private fun SpendSummary(list: List<Txn>, previous: List<Txn>, ym: YearMonth, catById: Map<Long, Category>, onCategory: (Long) -> Unit) {
+private fun SpendSummary(list: List<Spend>, previous: List<Spend>, ym: YearMonth, catById: Map<Long, Category>, onCategory: (Long) -> Unit) {
     val spent = spentOf(list)
     val before = spentOf(previous)
     val byCat = list.filter { TxnKind.spendSign(it.kind, it.isCredit) != 0 }
@@ -386,8 +417,8 @@ private fun SpendSummary(list: List<Txn>, previous: List<Txn>, ym: YearMonth, ca
         .toList().sortedByDescending { it.second }
     val top = byCat.take(4)
     val other = byCat.drop(4).sumOf { it.second }
-    val payments = list.filter { it.kind == TxnKind.PAYMENT }.sumOf { it.amountPaise }
-    val cashback = list.filter { it.kind == TxnKind.CASHBACK }.sumOf { if (it.isCredit) it.amountPaise else -it.amountPaise }
+    val payments = list.filter { it.currency == "INR" && it.kind == TxnKind.PAYMENT }.sumOf { it.amountPaise }
+    val cashback = list.filter { it.currency == "INR" && it.kind == TxnKind.CASHBACK }.sumOf { if (it.isCredit) it.amountPaise else -it.amountPaise }
     val monthName = ym.month.name.lowercase().replaceFirstChar(Char::uppercase)
     fun colorOf(id: Long?) = id?.let { catById[it] }?.let { Color(it.color) }
 
@@ -455,6 +486,48 @@ private fun CategoryChip(name: String, pct: Int, color: Color, onClick: (() -> U
         Box(Modifier.size(8.dp).clip(CircleShape).background(color))
         Text(name, style = MaterialTheme.typography.labelMedium, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(start = 6.dp))
         Text(" $pct%", style = MaterialTheme.typography.labelMedium.tabular, color = MaterialTheme.colorScheme.onSurfaceVariant)
+    }
+}
+
+@Composable
+private fun SpendRow(s: Spend, cw: CardWithDue?, cat: Category?, onClick: () -> Unit) {
+    val counted = TxnKind.spendSign(s.kind, s.isCredit) != 0 && s.kind != TxnKind.REFUND
+    val flagged = SpendReview.flagged(s.review)
+    Row(
+        Modifier.fillMaxWidth().clickable(onClick = onClick).heightIn(min = 56.dp).padding(horizontal = 20.dp, vertical = 8.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Box(Modifier.size(10.dp).clip(CircleShape).background(cat?.let { Color(it.color) } ?: MaterialTheme.colorScheme.outline))
+        Column(Modifier.weight(1f).padding(start = 14.dp)) {
+            Text(s.merchant.ifBlank { TxnKind.label(s.kind) }, style = MaterialTheme.typography.bodyLarge, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    listOfNotNull(
+                        cw?.card?.let { "${it.nickname} •• ${it.last4}" },
+                        Instant.ofEpochMilli(s.atMillis).atZone(ZoneId.systemDefault()).format(timeFormat),
+                    ).joinToString(" · "),
+                    style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f, fill = false),
+                )
+                if (s.review == SpendReview.MATCHED) Icon(Icons.Filled.Check, "Matches your statement", Modifier.padding(start = 6.dp).size(14.dp), tint = Good)
+            }
+            if (flagged) {
+                Text(
+                    if (s.review == SpendReview.MISSING) "Missing from statement" else "Amount differs",
+                    style = MaterialTheme.typography.bodySmall, color = Amber,
+                )
+            }
+        }
+        Spacer(Modifier.width(8.dp))
+        Text(
+            (if (s.isCredit) "+" else "") + spendAmountText(s),
+            style = MaterialTheme.typography.bodyLarge.tabular,
+            color = when {
+                s.isCredit -> Good
+                !counted -> MaterialTheme.colorScheme.onSurfaceVariant
+                else -> MaterialTheme.colorScheme.onSurface
+            },
+        )
     }
 }
 
@@ -576,12 +649,12 @@ suspend fun saveTxnEdits(ledger: Ledger, t: Txn, catId: Long?, pattern: String?,
 }
 
 private suspend fun exportCsv(
-    context: Context, uri: Uri, rows: List<Txn>, cards: Map<Long, CardWithDue>, cats: Map<Long, Category>,
+    context: Context, uri: Uri, rows: List<Spend>, cards: Map<Long, CardWithDue>, cats: Map<Long, Category>,
 ) {
     fun esc(s: String) = "\"" + s.replace("\"", "\"\"") + "\""
     val csv = buildString {
-        appendLine("date,card,merchant,category,type,debit_credit,amount_inr,note")
-        rows.sortedBy { it.epochDay }.forEach { t ->
+        appendLine("date,card,merchant,category,type,debit_credit,amount,currency,note")
+        rows.sortedBy { it.atMillis }.forEach { t ->
             val c = cards[t.cardId]?.card
             appendLine(
                 listOf(
@@ -592,6 +665,7 @@ private suspend fun exportCsv(
                     t.kind,
                     if (t.isCredit) "credit" else "debit",
                     java.math.BigDecimal(t.amountPaise).movePointLeft(2).toPlainString(),
+                    t.currency,
                     esc(t.note),
                 ).joinToString(","),
             )
@@ -600,5 +674,5 @@ private suspend fun exportCsv(
     val ok = withContext(Dispatchers.IO) {
         runCatching { context.contentResolver.openOutputStream(uri)?.use { it.write(csv.toByteArray()) } }.isSuccess
     }
-    Toast.makeText(context, if (ok) "Exported ${rows.size} transactions" else "Export failed", Toast.LENGTH_SHORT).show()
+    Toast.makeText(context, if (ok) "Exported ${rows.size} spends" else "Export failed", Toast.LENGTH_SHORT).show()
 }

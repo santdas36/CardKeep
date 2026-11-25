@@ -127,7 +127,7 @@ class MainActivity : FragmentActivity() {
 
                 val ledger = app.repo.ledger
                 val statements by ledger.statements.collectAsStateWithLifecycle(initialValue = emptyList())
-                val txns by ledger.txns.collectAsStateWithLifecycle(initialValue = emptyList())
+                val spends by app.repo.spendLog.spends.collectAsStateWithLifecycle(initialValue = emptyList())
                 val categories by ledger.categories.collectAsStateWithLifecycle(initialValue = emptyList())
                 val mail by ledger.mailSource.collectAsStateWithLifecycle(initialValue = null)
                 val importLog by ledger.importLog.collectAsStateWithLifecycle(initialValue = emptyList())
@@ -235,7 +235,7 @@ class MainActivity : FragmentActivity() {
                                         Tab.Activity -> {
                                         val m = mail
                                         ActivityScreen(
-                                            txns = txns,
+                                            spends = spends,
                                             cards = everyCard,
                                             categories = categories,
                                             statements = statements,
@@ -247,6 +247,7 @@ class MainActivity : FragmentActivity() {
                                             onSync = runSync,
                                             onSetupMail = { nav.navigate("mail") },
                                             onOpenStatement = { nav.navigate("statement/$it") },
+                                            onOpenTracking = { nav.navigate("settings") },
                                             needsYou = needsYou.size,
                                             onImport = importPdf,
                                             bottomBar = {},
@@ -335,8 +336,10 @@ class MainActivity : FragmentActivity() {
                             SettingsScreen(
                                 app.prefs, onMail = { nav.navigate("mail") }, onPasswords = { nav.navigate("passwords") }, onBack = { nav.popBackStack() },
                                 onArchived = { nav.navigate("archived") }, archivedCount = archived.size,
+                                onAlerts = { nav.navigate("alerts") },
                             )
                         }
+                        composable("alerts") { AlertMissesScreen(onBack = { nav.popBackStack() }) }
                         composable("archived") {
                             ArchivedScreen(
                                 cards = archived,
