@@ -62,7 +62,7 @@ import app.cardkeep.reminders.Reminders
  */
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
-fun SettingsScreen(prefs: Prefs, onMail: () -> Unit, onPasswords: () -> Unit = {}, onBack: () -> Unit, onArchived: () -> Unit = {}, archivedCount: Int = 0) {
+fun SettingsScreen(prefs: Prefs, onMail: () -> Unit, onPasswords: () -> Unit = {}, onBack: () -> Unit, onArchived: () -> Unit = {}, archivedCount: Int = 0, onAlerts: () -> Unit = {}) {
     val context = LocalContext.current
     var timeout by remember { mutableIntStateOf(prefs.lockTimeoutSec) }
     var leads by remember { mutableStateOf(prefs.defaultLeads) }
@@ -117,6 +117,9 @@ fun SettingsScreen(prefs: Prefs, onMail: () -> Unit, onPasswords: () -> Unit = {
                 // Statement passwords live inside Email statements, next to the imports that use them.
                 ListRow(Icons.Outlined.Mail, "Email statements", "Gmail import and statement passwords", chevron = true, onClick = onMail)
             }
+
+            SectionHeader("Spend tracking")
+            SpendTrackingSection(prefs, onAlerts)
 
             SectionHeader("Data")
             BackupSection()

@@ -337,6 +337,8 @@ fun DetailScreen(
                 }
             }
 
+            CardSpendLog(c, latest?.statementEpochDay)
+
             // Rewards, from imported statements.
             val pointsStmt = stmts.firstOrNull { it.rewardPointsBalance != null || it.rewardPointsEarned != null }
             val cashbackTotal = stmts.mapNotNull { it.cashbackPaise }.takeIf { it.isNotEmpty() }?.sum()

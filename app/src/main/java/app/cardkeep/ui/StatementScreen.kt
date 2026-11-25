@@ -33,6 +33,8 @@ import androidx.compose.material.icons.automirrored.filled.KeyboardArrowLeft
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.KeyboardArrowDown
+import androidx.compose.material.icons.filled.KeyboardArrowUp
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.outlined.Lightbulb
 import androidx.compose.material3.AlertDialog
@@ -71,10 +73,14 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import app.cardkeep.data.Category
 import app.cardkeep.data.Ledger
 import app.cardkeep.data.Payment
 import app.cardkeep.data.Repo
+import app.cardkeep.data.Spend
+import app.cardkeep.data.SpendReview
+import app.cardkeep.data.SpendSource
 import app.cardkeep.data.Statement
 import app.cardkeep.data.Txn
 import app.cardkeep.domain.CardWithDue
@@ -245,6 +251,7 @@ private fun StatementPage(
     nextReview: Statement? = null, reviewLeft: Int = 0, onNext: () -> Unit = {},
 ) {
     val lines by remember(st.id) { ledger.linesFor(st.id) }.collectAsState(initial = emptyList())
+    val loggedSpends by repo.spendLog.spends.collectAsStateWithLifecycle(initialValue = emptyList())
     val scope = rememberCoroutineScope()
     val catById = categories.associateBy { it.id }
     var open by remember { mutableStateOf<Txn?>(null) }
@@ -339,6 +346,8 @@ private fun StatementPage(
                     }
                 }
             }
+
+            CheckedAgainstLog(st, loggedSpends.filter { it.cardId == st.cardId }, lines) { t -> scope.launch { repo.spendLog.addFromStatement(t) } }
         }
 
         // Lines, grouped: credits, spends by category, fees.
@@ -397,6 +406,54 @@ private fun StatementPage(
             onDismiss = { paying = false },
             onConfirm = { amt -> paying = false; scope.launch { repo.markPaid(st.cardId, st.dueEpochDay, amt) } },
         )
+    }
+}
+
+/**
+ * How this statement compares with the spend log: counts, and the lines the log doesn't have. Only shown
+ * when the log has spends from this period; the missing-lines list only when alerts were being read then.
+ */
+@Composable
+private fun CheckedAgainstLog(st: Statement, cardSpends: List<Spend>, lines: List<Txn>, onAdd: (Txn) -> Unit) {
+    var showOnly by remember(st.id) { mutableStateOf(false) }
+    val start = st.periodStartEpochDay ?: (st.statementEpochDay - 30)
+    val inPeriod = cardSpends.filter { it.statementId == st.id || (it.statementId == null && it.epochDay in start..st.statementEpochDay) }
+    if (inPeriod.isEmpty()) return
+
+    val counts = listOf(
+        inPeriod.count { it.review == SpendReview.MATCHED } to "matched",
+        inPeriod.count { it.review == SpendReview.MISSING } to "missing",
+        inPeriod.count { it.review == SpendReview.DIFFERS } to "differ",
+    ).filter { it.first > 0 }.joinToString(" · ") { "${it.first} ${it.second}" }
+    val linked = cardSpends.mapNotNull { it.statementTxnId }.toSet()
+    val tracked = inPeriod.any { it.source != SpendSource.MANUAL }
+    val onlyOnStatement = if (tracked) lines.filter { TxnKind.spendSign(it.kind, it.isCredit) != 0 && it.id !in linked } else emptyList()
+
+    Spacer(Modifier.height(12.dp))
+    Panel {
+        Text("Checked against your log", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        Text(counts.ifEmpty { "${inPeriod.size} in your log" }, style = MaterialTheme.typography.titleSmall.tabular)
+        if (onlyOnStatement.isNotEmpty()) {
+            Row(
+                Modifier.fillMaxWidth().clickable { showOnly = !showOnly }.padding(top = 12.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text("Only on statement · ${onlyOnStatement.size}", style = MaterialTheme.typography.bodyMedium, modifier = Modifier.weight(1f))
+                Icon(if (showOnly) Icons.Filled.KeyboardArrowUp else Icons.Filled.KeyboardArrowDown, if (showOnly) "Hide" else "Show", tint = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+            if (showOnly) onlyOnStatement.forEach { t ->
+                Row(Modifier.fillMaxWidth().heightIn(min = 48.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Column(Modifier.weight(1f)) {
+                        Text(t.merchant, style = MaterialTheme.typography.bodyMedium, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                        Text(
+                            Dates.short(LocalDate.ofEpochDay(t.epochDay)) + " · " + Money.inr(t.amountPaise, true),
+                            style = MaterialTheme.typography.bodySmall.tabular, color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                    TextButton(onClick = { onAdd(t) }) { Text("Add to log") }
+                }
+            }
+        }
     }
 }
 
