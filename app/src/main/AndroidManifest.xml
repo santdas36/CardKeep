@@ -13,6 +13,10 @@
     <uses-permission android:name="android.permission.NFC" />
     <uses-feature android:name="android.hardware.nfc" android:required="false" />
     <uses-permission android:name="android.permission.CAMERA" />
+    <!-- Spend tracking (optional, off until turned on): bank card alerts are read on the phone only. -->
+    <uses-permission android:name="android.permission.READ_SMS" />
+    <uses-permission android:name="android.permission.RECEIVE_SMS" />
+    <uses-feature android:name="android.hardware.telephony" android:required="false" />
     <uses-feature android:name="android.hardware.camera" android:required="false" />
 
     <application
@@ -70,6 +74,24 @@
             android:excludeFromRecents="true"
             android:theme="@style/Theme.Cards.Unlock" />
 
+        <!-- Spend tracking: new bank SMS, and bank alerts in message notifications (RCS). -->
+        <receiver
+            android:name=".ingest.alerts.SmsReceiver"
+            android:exported="true"
+            android:permission="android.permission.BROADCAST_SMS">
+            <intent-filter>
+                <action android:name="android.provider.Telephony.SMS_RECEIVED" />
+            </intent-filter>
+        </receiver>
+        <service
+            android:name=".ingest.alerts.AlertListener"
+            android:exported="false"
+            android:label="Cards spend tracking"
+            android:permission="android.permission.BIND_NOTIFICATION_LISTENER_SERVICE">
+            <intent-filter>
+                <action android:name="android.service.notification.NotificationListenerService" />
+            </intent-filter>
+        </service>
         <receiver android:name=".reminders.ReminderReceiver" android:exported="false" />
         <receiver android:name=".reminders.ActionReceiver" android:exported="false" />
         <receiver android:name=".reminders.BootReceiver" android:exported="false">

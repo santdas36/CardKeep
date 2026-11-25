@@ -44,6 +44,8 @@ class CardsApp : Application() {
             }
             Reminders.rescheduleAll(this@CardsApp)
             if (repo.ledger.mailSourceOnce()?.passwordEnc != null) SyncWorker.enable(this@CardsApp)
+            // Catch up on bank SMS that arrived while the app wasn't running.
+            runCatching { app.cardkeep.ingest.alerts.AlertIngest.scanInbox(this@CardsApp) }
         }
     }
 
