@@ -158,6 +158,15 @@ open class LabelParser(
             }
             val ref = Regex("\\b(?:ref|reference|arn)[:#\\s]*([A-Z0-9]{6,})", RegexOption.IGNORE_CASE).find(desc)?.groupValues?.get(1).orEmpty()
             out += ParsedLine(date, desc, amount, credit, ref)
+            // Undated lines straight after it (tax on a fee) belong to the same day.
+            for (next in lines.drop(i + 1).take(3)) {
+                if (Text.TXN.matchEntire(next) != null) break
+                val f = Text.FOLLOW_ON.matchEntire(next) ?: break
+                val fDesc = f.groupValues[1].trim()
+                if (isHeaderish(fDesc) || isTableHeader(next)) break
+                val fAmount = Text.paise(f.groupValues[2]) ?: break
+                out += ParsedLine(date, fDesc, fAmount, f.groupValues[3].lowercase().startsWith("c"))
+            }
         }
         return out
     }
@@ -368,13 +377,18 @@ object Text {
     /**
      * The account summary as a bare row of figures whose headings sit elsewhere, e.g. HDFC's
      * "5,237.48 5,365.48 15,975.82 0.00 15,848.00" (opening, credits, debits, charges, total) or Axis's
-     * "4,080.80 Dr 4,080.80 30.00 4,551.82 0.00 0.00 4,521.82 Dr". The row must end in [totalDue] and the
-     * figures between must add or take away to get there from the first one, which is the opening balance.
+     * "4,080.80 Dr 4,080.80 30.00 4,551.82 0.00 0.00 4,521.82 Dr". The row must end in [totalDue] (or the
+     * outstanding, e.g. SBI's "1.00 CR" against a ₹0 due) and the figures between must add or take away to get
+     * there from the first one, which is the opening balance. Failing that, a row ending in the total right under
+     * a "Previous Balance" heading still counts: Axis sometimes leaves refunds out of its own credits column.
+     * The transaction lines are checked against the opening either way.
      */
     fun summaryRow(lines: List<String>, totalDue: Long): Long? {
+        fun values(l: String) = signedAmounts(l).mapNotNull { a -> paise(a.removePrefix("-"))?.let { if (a.startsWith("-")) -it else it } }
+        fun endsInTotal(v: List<Long>) = v.size in 4..8 && abs(v.last() - totalDue) <= 100
         for (l in lines) {
-            val v = amounts(l).mapNotNull { paise(it) }
-            if (v.size !in 4..8 || abs(v.last() - abs(totalDue)) > 100) continue
+            val v = values(l)
+            if (!endsInTotal(v)) continue
             val middle = v.subList(1, v.size - 1)
             val fits = (0 until (1 shl middle.size)).any { mask ->
                 val sum = v.first() + middle.withIndex().sumOf { (k, x) -> if (mask and (1 shl k) != 0) x else -x }
@@ -382,8 +396,20 @@ object Text {
             }
             if (fits) return v.first()
         }
+        for ((i, l) in lines.withIndex()) {
+            val v = values(l)
+            if (!endsInTotal(v)) continue
+            val heading = lines.subList(maxOf(0, i - 3), i).any { it.lowercase().let { h -> h.contains("previous balance") || h.contains("opening balance") } }
+            if (heading) return v.first()
+        }
         return null
     }
+
+    /**
+     * A line without a date right under a transaction, e.g. SBI's tax on a fee: "IGST DB @ 18.00% 89.82 D".
+     * Groups: 1 description, 2 amount, 3 Cr/Dr marker (required, so stray figures aren't taken).
+     */
+    val FOLLOW_ON = Regex("^(?!$DATE_RX)([A-Za-z].*?)\\s+($AMOUNT_RX)\\s*(Cr|CR|cr|C|Dr|DR|dr|D)$", RegexOption.IGNORE_CASE)
 
     private val BARE_DATE = Regex("(?:(\\w+)\\s+)?date\\s*:\\s*($DATE_RX)", RegexOption.IGNORE_CASE)
     private val NOT_STATEMENT = setOf("due", "payment", "birth", "transaction", "txn", "posting", "value", "expiry", "issue")
@@ -451,7 +477,8 @@ object Parsers {
      */
     fun validate(p: ParsedStatement): Validation {
         if (p.totalDuePaise == null) return Validation(false, "Total due not found")
-        if (p.dueDate == null) return Validation(false, "Due date not found")
+        // Nothing to pay ("NO PAYMENT REQUIRED") prints no due date.
+        if (p.dueDate == null && p.totalDuePaise > 0) return Validation(false, "Due date not found")
         if (p.lines.isEmpty() && p.totalDuePaise != 0L && p.totalDuePaise != p.openingPaise) {
             return Validation(false, "No transactions found")
         }
@@ -465,7 +492,7 @@ object Parsers {
     fun validate(totalDue: Long?, dueKnown: Boolean, opening: Long?, debits: Long, credits: Long): Validation =
         when {
             totalDue == null -> Validation(false, "Total due not found")
-            !dueKnown -> Validation(false, "Due date not found")
+            !dueKnown && totalDue > 0 -> Validation(false, "Due date not found")
             opening == null -> Validation(false, "Opening balance not found")
             abs(opening + debits - credits - totalDue) <= 100 -> Validation(true, "")
             else -> Validation(false, "Transactions are off by ${app.cardkeep.domain.Money.inr(abs(opening + debits - credits - totalDue), true)}")

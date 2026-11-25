@@ -280,6 +280,42 @@ class ParserTest {
         assertTrue(Parsers.validate(p).note, Parsers.validate(p).ok)
     }
 
+    // SBI-style (synthetic): tax on a fee on an undated line, and a statement with nothing to pay and no due date.
+    @Test fun undatedTaxLineAndNothingDue() {
+        val fee = """
+            *Total Amount Due ( ` )
+            1,009.00
+            Statement Date Payment Due Date
+            16 Jun 2026 06 Jul 2026
+            Previous Balance Reversals & other Purchases & Other Fee, Taxes & Total Outstanding
+            ( ` ) Credits ( ` ) Debits ( ` ) Interest Charges ( ` ) ( ` )
+            0.00 0.00 420.00 588.82 1,009.00
+            16 Jun 26 ANNUAL FEE CHARGED (EXCL TAX 89.82) 499.00 D
+            IGST DB @ 18.00% 89.82 D
+            28 May 26 SAMPLE STORE Bangalore IND 420.00 D
+        """.trimIndent()
+        val p = Parsers.forIssuer("SBI Card").parse(fee)
+        assertEquals(3, p.lines.size)
+        assertEquals("IGST DB @ 18.00%", p.lines[1].description)
+        assertTrue(Parsers.validate(p).note, Parsers.validate(p).ok)
+
+        val nothing = """
+            *Total Amount Due ( ` )
+            0.00
+            Statement Date
+            16 Aug 2026
+            Payment Due Date
+            NO PAYMENT REQUIRED
+            Previous Balance Reversals & other Purchases & Other Fee, Taxes & Total Outstanding
+            ( ` ) Credits ( ` ) Debits ( ` ) Interest Charges ( ` ) ( ` )
+            2,438.37 2,439.00 0.00 0.00 1.00 CR
+            17 Jul 26 PAYMENT RECEIVED 000DP0161981 2,439.00 C
+        """.trimIndent()
+        val q = Parsers.forIssuer("SBI Card").parse(nothing)
+        assertEquals(243_837L, q.openingPaise)
+        assertTrue(Parsers.validate(q).note, Parsers.validate(q).ok)
+    }
+
     // HDFC Diners (synthetic): column values a few lines below their headings, a bare "Date:", and the summary as a row of figures.
     @Test fun hdfcDinersLayout() {
         val text = """

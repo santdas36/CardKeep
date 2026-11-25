@@ -52,7 +52,7 @@ class CardsApp : Application() {
 
     companion object {
         /** Bump when parsers improve enough that stored statements should be refreshed. */
-        const val PARSER_VERSION = 6
+        const val PARSER_VERSION = 7
         fun from(context: Context) = context.applicationContext as CardsApp
     }
 }
