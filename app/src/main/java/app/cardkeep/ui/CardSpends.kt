@@ -139,7 +139,7 @@ fun CardSpendsScreen(cardId: Long, onBack: () -> Unit) {
             if (shown.isEmpty()) {
                 item {
                     Text(
-                        if (mine.isEmpty()) "Nothing logged since ${Dates.short(period.start)}. Spends show up here as your bank's alerts arrive, or add one with +."
+                        if (mine.isEmpty()) "No spends since ${Dates.short(period.start)}"
                         else "Nothing in this category yet.",
                         style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant,
                         modifier = Modifier.padding(horizontal = 20.dp, vertical = 24.dp),

@@ -130,7 +130,7 @@ fun DesignSheet(issuer: String, nickname: String, selected: String?, onSelect: (
             }
             item("note", span = { GridItemSpan(maxLineSpan) }) {
                 Text(
-                    "Auto picks the design from the bank and nickname. Designs are approximations, without logos.",
+                    "Auto picks a design from the bank and nickname.",
                     style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.padding(top = 8.dp),
                 )

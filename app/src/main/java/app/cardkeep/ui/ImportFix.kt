@@ -114,7 +114,7 @@ fun ImportFixDialog(
                 modifier = Modifier.fillMaxWidth(),
             )
             Text(
-                "Usually in the bank's email, e.g. first 4 letters of your name + DDMM of birth.",
+                "Usually first 4 letters of your name + DDMM of birth",
                 style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
             Row(Modifier.fillMaxWidth().clickable { rememberPw = !rememberPw }.heightIn(min = 44.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -144,7 +144,7 @@ fun ImportFixDialog(
             }
             if (entry.sender.isNotBlank()) {
                 Text(
-                    "Statements from this sender will go to this card from now on.",
+                    "Future statements from this sender go here.",
                     style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }

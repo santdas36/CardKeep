@@ -97,7 +97,7 @@ fun SettingsScreen(prefs: Prefs, onMail: () -> Unit, onPasswords: () -> Unit = {
                     }
                 }
                 Text(
-                    "For new cards. Reminders arrive at 9 am; each card can change these.",
+                    "For new cards. Reminders come at 9 am.",
                     style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.padding(top = 4.dp),
                 )
@@ -148,7 +148,7 @@ fun SettingsScreen(prefs: Prefs, onMail: () -> Unit, onPasswords: () -> Unit = {
                 ListRow(Icons.Outlined.Storage, "Card BIN data", "binlist-data by Ian Nuttall and bin-list-data by Venelin Kochev, CC BY 4.0")
             }
             Text(
-                "Everything stays on this phone. The only network use is reading statement emails from your own mailbox.",
+                "Your data stays on this phone. Cards only goes online to read your statement emails and check for updates.",
                 style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.padding(horizontal = 4.dp, vertical = 12.dp),
             )
@@ -190,11 +190,11 @@ private fun ReminderHealth(tick: Int) {
     }
     Panel(padded = false) {
         if (notif && exact && battery) {
-            ListRow(Icons.Filled.CheckCircle, "Reminders are all set", "Notifications, exact alarms and battery are fine", iconTint = Good)
+            ListRow(Icons.Filled.CheckCircle, "Reminders are all set", iconTint = Good)
             return@Panel
         }
         if (!notif) {
-            Health("Notifications blocked", "Tap to allow, or reminders stay silent.") {
+            Health("Notifications blocked", "Reminders are off. Tap to allow.") {
                 openSystemSettings(context, Intent(Settings.ACTION_APP_NOTIFICATION_SETTINGS).putExtra(Settings.EXTRA_APP_PACKAGE, context.packageName))
             }
         }
@@ -256,8 +256,8 @@ private fun AutofillRow() {
     ListRow(
         Icons.Outlined.CreditCard,
         if (on) "Card autofill is on" else "Fill cards at checkout",
-        if (on) "Suggestions show the card name and last four. Filling asks for your fingerprint or PIN."
-        else "Use Cards as the phone's autofill service. Every fill asks for your fingerprint or PIN.",
+        if (on) "Each fill needs your fingerprint."
+        else "Works in other apps. Needs your fingerprint each time.",
         chevron = true,
         onClick = {
             val intent = Intent(Settings.ACTION_REQUEST_SET_AUTOFILL_SERVICE, Uri.parse("package:${context.packageName}"))

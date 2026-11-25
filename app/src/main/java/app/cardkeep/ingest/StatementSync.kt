@@ -85,7 +85,7 @@ object StatementSync {
         val learned = ledger.statementSenders().filter { s -> issuers.any { iss -> iss.senders.any { s.contains(it) } } || s in extra }
         val exact = (issuers.flatMap { it.statementFrom } + learned + extra.filter { it.contains('@') }).distinct()
         val domains = (issuers.flatMap { it.senders } + extra.filterNot { it.contains('@') }).distinct()
-        if (exact.isEmpty() && domains.isEmpty()) return "None of your cards' issuers have known statement senders. Add one under extra senders."
+        if (exact.isEmpty() && domains.isEmpty()) return "No known senders for your banks. Add one under Senders."
 
         Pdf.init(context)
         val profile = ledger.profile(src)
@@ -129,7 +129,7 @@ object StatementSync {
             val app = CardsApp.from(context)
             val ledger = app.repo.ledger
             val e = ledger.logEntry(key) ?: return@withContext Outcome("error", "That email isn't in the list any more.")
-            val pdf = ledger.pendingPdf(key) ?: return@withContext Outcome("error", "The PDF isn't stored any more. Use Retry failed to fetch it again.")
+            val pdf = ledger.pendingPdf(key) ?: return@withContext Outcome("error", "PDF missing. Tap Retry failed.")
             Pdf.init(context)
             ledger.ensureSeeded()
             val cards = app.repo.activeCards()
@@ -205,7 +205,7 @@ object StatementSync {
             )
             is Pdf.Result.Failed -> return done("error", r.reason, "Couldn't open the PDF.")
         }
-        if (text.isBlank()) return done("unparsed", "No text in the PDF (scanned image?)", "There's no text in this PDF.")
+        if (text.isBlank()) return done("unparsed", "This PDF is a scanned image", "There's no text in this PDF.")
 
         // Mail date anchors statements that print dates without a year; a picked file has no useful date.
         val received = if (mail.key.startsWith("file:")) null

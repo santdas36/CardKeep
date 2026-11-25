@@ -817,7 +817,7 @@ private fun Summary(cards: List<CardWithDue>) {
 private fun LockWarning() {
     Panel(Modifier.padding(bottom = 16.dp), color = Amber.copy(alpha = 0.12f)) {
         Text(
-            "No screen lock is set. Set a PIN, pattern or fingerprint in system settings to lock Cards and store card numbers.",
+            "Set a screen lock to protect your cards.",
             style = MaterialTheme.typography.bodyMedium,
         )
     }

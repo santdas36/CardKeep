@@ -91,7 +91,7 @@ fun TxnSheet(
                 }
             }
             Text(
-                "Payments and cashback aren't counted as spending.",
+                "Payments and cashback don't count as spends.",
                 style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
 

@@ -74,7 +74,7 @@ fun AlertMissesScreen(onBack: () -> Unit) {
         ) {
             item {
                 Text(
-                    "Bank alerts that looked like card spends but couldn't be logged. Kept on this phone for 7 days, then deleted.",
+                    "Cleared after 7 days.",
                     style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.padding(horizontal = 4.dp, vertical = 4.dp),
                 )

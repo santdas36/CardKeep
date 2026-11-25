@@ -429,7 +429,7 @@ private fun SpendsPage(prefs: Prefs) {
 
     Page(
         hero = { SpendPreview() }, title = "Every spend, as it happens",
-        body = "Your bank's alerts are logged against your cards and checked when the statement arrives. Read on your phone only.",
+        body = "Logged from your bank's alerts, checked against your statement.",
     ) {
         Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
             if (hasTelephony) {
@@ -451,8 +451,7 @@ private fun SpendsPage(prefs: Prefs) {
     if (blocked) {
         ConfirmDialog(
             title = "Android is blocking this",
-            body = "Android may block SMS access for apps installed outside the Play Store.\n\n" +
-                "Open App info → ⋮ (top right) → Allow restricted settings, then tap Allow again. You can also turn this on later in Settings.",
+            body = "Not allowed for apps from outside the Play Store. Open App info → ⋮ → Allow restricted settings, then try again.",
             confirmLabel = "Open App info",
             destructive = false,
             onDismiss = { blocked = false },

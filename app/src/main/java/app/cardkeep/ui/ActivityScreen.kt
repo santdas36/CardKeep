@@ -223,14 +223,14 @@ fun ActivityScreen(
                         Prompt(
                             Icons.Outlined.WarningAmber,
                             if (needsYou == 1) "1 statement needs you" else "$needsYou statements need you",
-                            "A password or which card it's for", Amber.copy(alpha = 0.16f), onSetupMail,
+                            "Missing a password or a card", Amber.copy(alpha = 0.16f), onSetupMail,
                         )
                     }
                     if (review.isNotEmpty()) {
                         Prompt(
                             Icons.AutoMirrored.Outlined.ReceiptLong,
                             if (review.size == 1) "1 statement needs a look" else "${review.size} statements need a look",
-                            "Totals don't add up yet", Amber.copy(alpha = 0.16f),
+                            "Totals don't match", Amber.copy(alpha = 0.16f),
                         ) { onOpenStatement(review.minBy { it.statementEpochDay }.id) }
                     }
 
@@ -262,7 +262,7 @@ fun ActivityScreen(
                         }
                         if (flaggedOnly) {
                             Text(
-                                "Spends your statement doesn't agree with. Tap one to keep, fix or remove it.",
+                                "Not matching your statement",
                                 style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
                                 modifier = Modifier.padding(horizontal = 20.dp, vertical = 4.dp),
                             )
@@ -383,7 +383,7 @@ private fun NoSpends(onOpenTracking: () -> Unit, onAdd: () -> Unit) {
     Column(Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 32.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
         Text("Keep track of what you spend", style = MaterialTheme.typography.titleMedium)
         Text(
-            "Your bank's SMS and message alerts can fill this in on their own, so every card spend is logged as it happens and checked against your statement. Or add spends yourself.",
+            "Log card spends from your bank's alerts, or add them yourself.",
             style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
         Button(onClick = onOpenTracking, modifier = Modifier.fillMaxWidth().padding(top = 6.dp).height(48.dp)) { Text("Turn on spend tracking") }

@@ -94,7 +94,7 @@ fun PasswordsScreen(ledger: Ledger, onBack: () -> Unit) {
         if (!loaded) return@Scaffold
         Column(Modifier.fillMaxSize().padding(pad).verticalScroll(rememberScrollState()).padding(horizontal = Gutter).padding(bottom = 24.dp)) {
             Text(
-                "Banks lock statement PDFs with things like your name and birth date. Cards tries the usual patterns for each bank. Stored encrypted on this phone; never sent anywhere.",
+                "Used to unlock statement PDFs. Stored encrypted on this phone.",
                 style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.padding(horizontal = 4.dp),
             )

@@ -96,7 +96,7 @@ fun ArchivedScreen(
     confirm?.let { cw ->
         ConfirmDialog(
             title = "Delete ${cw.card.nickname}?",
-            body = "The card, its stored number and CVV, statements and payment history are removed from this phone. This can't be undone.",
+            body = "Removes the card, its statements and payments. Can't be undone.",
             onDismiss = { confirm = null },
             onConfirm = { confirm = null; onDelete(cw.card.id) },
         )

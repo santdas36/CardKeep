@@ -411,7 +411,7 @@ fun EditScreen(
                 throw e
             } catch (e: Exception) {
                 error = if (e is Vault.KeyLost) e.message
-                else "Couldn't secure card details (${e.javaClass.simpleName}). Nothing was saved."
+                else "Couldn't save card details. Try again."
                 scroll.animateScrollTo(0)
             } finally {
                 saving = false
@@ -471,7 +471,7 @@ fun EditScreen(
                         } catch (e: kotlinx.coroutines.CancellationException) {
                             throw e
                         } catch (e: Exception) {
-                            error = "Couldn't save the card (${e.javaClass.simpleName})."
+                            error = "Couldn't save the card. Try again."
                             scroll.animateScrollTo(0)
                         } finally {
                             saving = false

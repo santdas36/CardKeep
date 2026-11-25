@@ -65,9 +65,9 @@ fun UpdateRow() {
     }
 
     val subtitle = when (val c = check) {
-        Check.Idle -> "Tap to see if there's a newer version"
+        Check.Idle -> "Version ${Updater.installedVersion(context)}"
         Check.Checking -> "Checking…"
-        Check.UpToDate -> "You're on the latest version"
+        Check.UpToDate -> "Up to date"
         is Check.Available -> "Version ${c.release.version} is available"
         is Check.Failed -> c.message
     }
@@ -159,13 +159,13 @@ private fun UpdateSheet(r: Updater.Release, onDismiss: () -> Unit) {
         if (downloading) LinearProgressIndicator(progress = { progress ?: 0f }, modifier = Modifier.fillMaxWidth().padding(top = 4.dp))
         if (needsPermission) {
             Text(
-                "Android needs your OK once to let Cards install its own updates.",
+                "Android asks once before Cards can install updates.",
                 style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
         }
         if (!selfUpdate) {
             Text(
-                "This is a debug build, so it can't update itself. Get the release APK from GitHub.",
+                "Debug builds can't update. Get the release from GitHub.",
                 style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
         }

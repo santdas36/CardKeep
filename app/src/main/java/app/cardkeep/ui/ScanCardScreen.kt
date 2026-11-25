@@ -186,7 +186,7 @@ private fun CameraReader(onResult: (ScannedCard) -> Unit) {
             Box(Modifier.fillMaxWidth().aspectRatio(85.6f / 54f).border(2.dp, Color.White, RoundedCornerShape(14.dp)))
             Text(hint, color = Color.White, style = MaterialTheme.typography.titleSmall, textAlign = TextAlign.Center)
             Text(
-                "Use the side with the card number. Nothing is saved or sent.",
+                "Use the side with the number",
                 color = Color.White.copy(alpha = 0.7f), style = MaterialTheme.typography.bodySmall, textAlign = TextAlign.Center,
             )
         }

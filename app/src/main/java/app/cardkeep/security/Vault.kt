@@ -29,7 +29,7 @@ data class EncryptedDraft(
  */
 object Vault {
     /** The vault keys died (screen lock removed or changed): what was stored with them is unreadable for good. */
-    class KeyLost : Exception("Stored card details can't be read after the screen lock was changed. Re-enter them or restore a backup.")
+    class KeyLost : Exception("Card details were reset with your screen lock. Re-enter them or restore a backup.")
 
     private fun alias(field: String) = "duely_vault_${field}_v1"
     private fun key(field: String) = Keys.getOrCreate(alias(field), requireAuth = true)

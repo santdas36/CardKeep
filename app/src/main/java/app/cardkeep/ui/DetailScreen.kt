@@ -174,7 +174,7 @@ fun DetailScreen(
         } catch (e: kotlinx.coroutines.CancellationException) {
             throw e
         } catch (e: Exception) {
-            val msg = if (e is Vault.KeyLost) e.message else "Couldn't unlock card details: ${e.javaClass.simpleName}"
+            val msg = if (e is Vault.KeyLost) e.message else "Couldn't unlock card details. Try again."
             Toast.makeText(context, msg, Toast.LENGTH_LONG).show()
             null
         }
@@ -298,7 +298,7 @@ fun DetailScreen(
             if (!hasSecrets) {
                 Panel {
                     Text(
-                        "Only the last four digits are saved. Add the full number, expiry and CVV (encrypted on this phone) to reveal and copy them from the card.",
+                        "Save the full number, expiry and CVV to copy them here. Stored encrypted.",
                         style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                     Spacer(Modifier.height(10.dp))
@@ -315,7 +315,7 @@ fun DetailScreen(
                     Text("No due date yet", style = MaterialTheme.typography.titleMedium)
                     Spacer(Modifier.height(4.dp))
                     Text(
-                        "Add the due date to get reminders. Importing a statement sets it too.",
+                        "Reminders need one.",
                         style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                     Spacer(Modifier.height(10.dp))
@@ -440,7 +440,7 @@ fun DetailScreen(
     if (confirmDelete) {
         ConfirmDialog(
             title = "Delete ${c.nickname}?",
-            body = "The card, its stored number and CVV, statements and payment history are removed from this phone. This can't be undone.",
+            body = "Removes the card, its statements and payments. Can't be undone.",
             onDismiss = { confirmDelete = false },
             onConfirm = { confirmDelete = false; scope.launch { repo.delete(c.id); onBack() } },
         )
@@ -476,7 +476,7 @@ fun DetailScreen(
     if (balanceDialog) {
         AmountSheet(
             title = "Outstanding balance",
-            note = "What the card owes right now. Statements update this automatically.",
+            note = "Updated by each statement.",
             initialPaise = c.outstandingPaise,
             onDismiss = { balanceDialog = false },
             onConfirm = { paise ->

@@ -25,7 +25,7 @@ fun ReplacePinDialog(card: Card, pinned: List<Card>, onReplace: (Long) -> Unit, 
         title = { Text("Replace a pinned card") },
         text = {
             Column {
-                Text("Up to $MAX_PINS cards can be pinned to the stack. Pick one to unpin for ${card.nickname}.")
+                Text("Up to $MAX_PINS pinned cards. Unpin one to make room.")
                 pinned.forEach { p ->
                     ListRow(Icons.Outlined.PushPin, p.nickname, "${p.issuer} · •• ${p.last4}", onClick = { onReplace(p.id) })
                 }

@@ -70,7 +70,7 @@ internal fun SpendSummary(list: List<Spend>, previous: List<Spend>, ym: YearMont
                 HorizontalDivider(Modifier.padding(vertical = 8.dp), color = MaterialTheme.colorScheme.outlineVariant)
                 Text(
                     listOfNotNull(
-                        payments.takeIf { it > 0 }?.let { "Paid to cards ${Money.inr(it, true)}" },
+                        payments.takeIf { it > 0 }?.let { "Paid ${Money.inr(it, true)}" },
                         cashback.takeIf { it > 0 }?.let { "Cashback ${Money.inr(it, true)}" },
                     ).joinToString(" · "),
                     style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant,

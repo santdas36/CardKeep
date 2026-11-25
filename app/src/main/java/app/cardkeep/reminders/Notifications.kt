@@ -31,7 +31,7 @@ object Notifications {
         val st = NotificationChannel(CHANNEL_STATEMENTS, "New statements", NotificationManager.IMPORTANCE_DEFAULT)
             .apply { description = "When a statement arrives by email" }
         val sp = NotificationChannel(CHANNEL_SPENDS, "Spend checks", NotificationManager.IMPORTANCE_DEFAULT)
-            .apply { description = "When a statement doesn't match the spends you logged" }
+            .apply { description = "When a statement doesn't match your spends" }
         context.getSystemService(NotificationManager::class.java).createNotificationChannels(listOf(ch, st, sp))
     }
 
@@ -125,7 +125,7 @@ object Notifications {
             .setSmallIcon(R.drawable.ic_stat_card)
             .setColor(card.color.toInt())
             .setContentTitle(if (count == 1) "1 spend needs a look" else "$count spends need a look")
-            .setContentText("${card.nickname} •• ${card.last4}: the statement doesn't match what was logged")
+            .setContentText("${card.nickname} •• ${card.last4}: doesn't match the statement")
             .setVisibility(NotificationCompat.VISIBILITY_PRIVATE)
             .setContentIntent(open)
             .setAutoCancel(true)

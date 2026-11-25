@@ -119,7 +119,7 @@ fun SpendTrackingSection(prefs: Prefs, onAlerts: () -> Unit) {
     Panel(padded = false) {
         if (hasTelephony) {
             ListRow(
-                Icons.Outlined.Sms, "Bank SMS", "Card alerts in your text messages",
+                Icons.Outlined.Sms, "Bank SMS", "Card alerts from your text messages",
                 onClick = ::toggleSms,
                 action = { Switch(smsOn, { toggleSms() }) },
             )
@@ -127,7 +127,7 @@ fun SpendTrackingSection(prefs: Prefs, onAlerts: () -> Unit) {
         }
         ListRow(
             Icons.Outlined.Notifications, "Message notifications (RCS)",
-            "Catches alerts sent over RCS. Google Messages, Samsung Messages and others.",
+            "Reads alerts from Google Messages and others",
             onClick = ::toggleNotifications,
             action = { Switch(notifOn, { toggleNotifications() }) },
         )
@@ -139,7 +139,7 @@ fun SpendTrackingSection(prefs: Prefs, onAlerts: () -> Unit) {
                     when {
                         !smsOn -> "Turn on Bank SMS first"
                         scanning -> "Reading your messages…"
-                        else -> scanResult ?: "Look through your inbox for card alerts you missed"
+                        else -> scanResult ?: "Find spends you missed"
                     },
                     onClick = if (smsOn && !scanning) ({ scan(AlertIngest.BACKFILL_DAYS) }) else null,
                     action = when {
@@ -156,8 +156,7 @@ fun SpendTrackingSection(prefs: Prefs, onAlerts: () -> Unit) {
     blocked?.let { what ->
         ConfirmDialog(
             title = "Android is blocking this",
-            body = "Android may block $what for apps installed outside the Play Store.\n\n" +
-                "Open App info → ⋮ (top right) → Allow restricted settings, then turn this on again.",
+            body = "Not allowed for apps from outside the Play Store. Open App info → ⋮ → Allow restricted settings, then try again.",
             confirmLabel = "Open App info",
             destructive = false,
             onDismiss = { blocked = null },

@@ -71,7 +71,7 @@ fun BackupSection() {
     Panel(padded = false) {
         ListRow(
             Icons.Outlined.CloudUpload, "Export backup",
-            if (lastBackup == 0L) "Never backed up. Save an encrypted copy of everything."
+            if (lastBackup == 0L) "Never backed up"
             else "Last saved " + Dates.long(Instant.ofEpochMilli(lastBackup).atZone(ZoneId.systemDefault()).toLocalDate()),
             chevron = true, onClick = { exporting = true },
         )
@@ -88,7 +88,7 @@ fun BackupSection() {
         val valid = pw.length >= 8 && pw == pw2
         EditSheet(
             title = "Export backup",
-            note = "Choose a password for the file. You'll need it to restore, and it can't be recovered if you forget it.",
+            note = "You'll need this password to restore. It can't be recovered.",
             onDismiss = { if (!busy) exporting = false },
             confirmLabel = if (busy) "Encrypting…" else "Continue",
             confirmEnabled = valid && !busy,
@@ -123,8 +123,7 @@ fun BackupSection() {
             PasswordField("Backup password", pw, error = pw.isNotEmpty() && pw.length < 8, hint = "At least 8 characters") { pw = it }
             PasswordField("Repeat password", pw2, error = pw2.isNotEmpty() && pw2 != pw, hint = if (pw2.isNotEmpty() && pw2 != pw) "Doesn't match" else null) { pw2 = it }
             Text(
-                "Includes cards with their numbers and CVVs, statements, transactions, payments, notes and settings. " +
-                    "Not included: your Gmail app password.",
+                "Everything except your Gmail app password.",
                 style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
         }
@@ -155,7 +154,7 @@ fun rememberRestoreBackup(onRestored: (Int) -> Unit = {}): () -> Unit {
         var pw by remember { mutableStateOf("") }
         var error by remember { mutableStateOf<String?>(null) }
         EditSheet(
-            title = "Restore from backup", note = "Enter the password you chose when exporting.",
+            title = "Restore from backup",
             onDismiss = { if (!busy) opening = null },
             confirmLabel = if (busy) "Decrypting…" else "Open backup",
             confirmEnabled = pw.isNotEmpty() && !busy,
@@ -181,8 +180,8 @@ fun rememberRestoreBackup(onRestored: (Int) -> Unit = {}): () -> Unit {
         val made = Dates.long(Instant.ofEpochMilli(s.createdAt).atZone(ZoneId.systemDefault()).toLocalDate())
         ConfirmDialog(
             title = "Replace everything?",
-            body = "This backup is from $made: ${s.cards} card${if (s.cards == 1) "" else "s"}, ${s.statements} statements, " +
-                "${s.transactions} transactions. Everything currently on this phone is replaced. This can't be undone.",
+            body = "From $made: ${s.cards} card${if (s.cards == 1) "" else "s"}, ${s.statements} statements. " +
+                "What's on this phone now will be lost.",
             confirmLabel = "Restore",
             onDismiss = { ready = null },
             onConfirm = {

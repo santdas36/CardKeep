@@ -67,7 +67,7 @@ fun TapCardSheet(onRead: (ChipCard) -> Unit, onDismiss: () -> Unit) {
             activity.runOnUiThread {
                 reading = false
                 if (card != null) onRead(card)
-                else status = "Couldn't read the card. Keep it still against the phone and try again."
+                else status = "Couldn't read it. Hold the card still and try again."
             }
         }, flags, null)
         onDispose { runCatching { adapter.disableReaderMode(activity) } }
@@ -91,7 +91,7 @@ fun TapCardSheet(onRead: (ChipCard) -> Unit, onDismiss: () -> Unit) {
             )
             Text(
                 if (!enabled) "Turn on NFC to read the card's number and expiry."
-                else "Fills in the number, expiry and network. Type the CVV yourself; it isn't stored on the chip.",
+                else "Reads the number and expiry. Type the CVV yourself.",
                 style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
                 textAlign = TextAlign.Center,
             )

@@ -163,7 +163,7 @@ fun SpendSheet(
                     chosen?.let { BankBadge(it.issuer, size = 34.dp) }
                     Column(Modifier.weight(1f).padding(start = 14.dp)) {
                         Text(chosen?.let { "${it.nickname} •• ${it.last4}" } ?: "Choose a card", style = MaterialTheme.typography.bodyLarge)
-                        if (fromAlert) Text("Matched from the bank's alert", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        if (fromAlert) Text("From the bank alert", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     }
                     if (!fromAlert) Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, "Change card", tint = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
@@ -175,7 +175,7 @@ fun SpendSheet(
             val kinds = listOf(TxnKind.SPEND, TxnKind.REFUND, TxnKind.PAYMENT, TxnKind.CASHBACK) + listOfNotNull(TxnKind.FEE.takeIf { spend?.kind == it })
             kinds.forEach { k -> FilterChip(selected = kind == k, onClick = { kind = k }, label = { Text(TxnKind.label(k)) }) }
         }
-        Text("Payments and cashback aren't counted as spending.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        Text("Payments and cashback don't count as spends.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
 
         Text("Category", style = MaterialTheme.typography.titleSmall, modifier = Modifier.padding(top = 6.dp))
         FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -205,7 +205,7 @@ fun SpendSheet(
     if (confirmDelete && spend != null) {
         ConfirmDialog(
             title = "Delete this spend?",
-            body = "\"${spend.merchant.ifBlank { TxnKind.label(spend.kind) }}\" (${spendAmountText(spend)}) is removed from your spend log. Your statements aren't changed. This can't be undone.",
+            body = "Removes \"${spend.merchant.ifBlank { TxnKind.label(spend.kind) }}\" (${spendAmountText(spend)}) from your spends. This can't be undone.",
             onDismiss = { confirmDelete = false },
             onConfirm = { confirmDelete = false; scope.launch { log.delete(spend); onDismiss() } },
         )
@@ -277,10 +277,10 @@ private fun SpendInfo(spend: Spend, onLooksFine: () -> Unit) {
         )
         spend.availablePaise?.let { KeyValue("Available limit", Money.inr(it, true)) }
         val explanation = when (spend.review) {
-            SpendReview.MISSING -> "Your statement for this period doesn't have this spend."
-            SpendReview.DIFFERS -> "Your statement shows a different amount."
+            SpendReview.MISSING -> "Not on your statement"
+            SpendReview.DIFFERS -> "Different amount on your statement"
             SpendReview.MATCHED -> "Matches your statement."
-            SpendReview.DISMISSED -> "You marked this as fine."
+            SpendReview.DISMISSED -> "Kept by you"
             else -> null
         }
         explanation?.let {

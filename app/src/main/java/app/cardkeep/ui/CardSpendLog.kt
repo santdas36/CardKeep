@@ -103,7 +103,7 @@ private fun FlaggedSheet(spends: List<Spend>, onDismiss: () -> Unit) {
         Column(Modifier.padding(horizontal = 20.dp).padding(bottom = 24.dp).verticalScroll(rememberScrollState())) {
             Text("Needs a look", style = MaterialTheme.typography.titleLarge)
             Text(
-                "These don't agree with the statement. Keep the ones that are right, remove the ones that aren't real spends.",
+                "Keep the real ones, remove the rest.",
                 style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.padding(top = 4.dp, bottom = 12.dp),
             )

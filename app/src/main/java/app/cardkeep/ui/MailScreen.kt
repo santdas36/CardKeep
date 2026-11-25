@@ -208,7 +208,7 @@ private fun Setup(ledger: Ledger, cards: List<CardEntity>, onConnected: () -> Un
     Column(Modifier.padding(top = 8.dp)) {
         Text("Import from Gmail", style = MaterialTheme.typography.titleLarge)
         Text(
-            "Cards reads statement emails from your bank, read-only, and unlocks the PDFs on this phone. Nothing is sent anywhere else.",
+            "Reads your bank's statement emails and unlocks the PDFs on this phone.",
             style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant,
             modifier = Modifier.padding(top = 4.dp),
         )
@@ -472,7 +472,7 @@ private fun Advanced(ledger: Ledger, cards: List<CardEntity>, onPasswords: () ->
     if (confirmRemove) {
         ConfirmDialog(
             title = "Disconnect email?",
-            body = "Deletes the saved app password from this phone and stops syncing. Imported statements and your PDF password details stay. Also revoke the app password in your Google account.",
+            body = "Stops syncing and removes the app password. Your statements stay. Revoke the password in your Google account too.",
             confirmLabel = "Disconnect",
             onDismiss = { confirmRemove = false },
             onConfirm = { confirmRemove = false; scope.launch { ledger.disconnectMail(); SyncWorker.disable(context) } },

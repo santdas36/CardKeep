@@ -231,7 +231,7 @@ fun StatementScreen(
     if (confirmDelete) {
         ConfirmDialog(
             title = "Delete this statement?",
-            body = "Its transactions are removed from this phone too. The email stays in your inbox. This can't be undone.",
+            body = "Removes its transactions too. The email stays.",
             onDismiss = { confirmDelete = false },
             onConfirm = {
                 confirmDelete = false
