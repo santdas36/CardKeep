@@ -1,8 +1,5 @@
 package app.cardkeep.ui
 
-import android.content.Context
-import android.net.Uri
-import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedVisibility
@@ -18,7 +15,6 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.asPaddingValues
-import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -26,19 +22,16 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowLeft
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.automirrored.outlined.ReceiptLong
 import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Refresh
@@ -50,15 +43,11 @@ import androidx.compose.material.icons.outlined.WarningAmber
 import androidx.compose.material3.Badge
 import androidx.compose.material3.BadgedBox
 import androidx.compose.material3.Button
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.Checkbox
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
-import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.InputChip
@@ -83,7 +72,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import app.cardkeep.data.Category
 import app.cardkeep.data.Ledger
@@ -94,51 +82,12 @@ import app.cardkeep.data.Txn
 import app.cardkeep.domain.CardWithDue
 import app.cardkeep.domain.Dates
 import app.cardkeep.domain.Money
-import app.cardkeep.ingest.Categorizer
 import app.cardkeep.ingest.SyncState
-import app.cardkeep.ingest.TxnKind
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
-import java.time.Instant
 import java.time.LocalDate
 import java.time.YearMonth
-import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 import java.util.Locale
-import kotlin.math.abs
-import kotlin.math.roundToInt
-
-/** Net spending of a list in rupees: purchases and fees, less refunds. Payments, cashback and foreign spends are left out. */
-private fun spentOf(list: List<Spend>) =
-    list.filter { it.currency == "INR" }.sumOf { TxnKind.spendSign(it.kind, it.isCredit) * it.amountPaise }
-
-private val timeFormat = DateTimeFormatter.ofPattern("h:mm a", Locale.ENGLISH)
-
-/** [Spend.source] of a statement line shown in a spend list (see [asEntry]). */
-internal const val STATEMENT_SOURCE = "statement"
-
-/** A statement line in the shape of a spend, so one list (and its totals) can show both. Its id is negative. */
-internal fun Txn.asEntry() = Spend(
-    id = -id, cardId = cardId, atMillis = LocalDate.ofEpochDay(epochDay).atTime(12, 0).atZone(ZoneId.systemDefault()).toInstant().toEpochMilli(),
-    epochDay = epochDay, amountPaise = amountPaise, isCredit = isCredit, kind = kind, currency = "INR", merchant = merchant,
-    categoryId = categoryId, note = note, source = STATEMENT_SOURCE, availablePaise = null, reference = reference, dedupeKey = dedupeKey,
-    review = SpendReview.NONE, statementId = statementId, statementTxnId = id,
-)
-
-/**
- * What Activity lists: statement lines for billed cycles, and logged spends only where no statement has
- * them yet (the unbilled cycle, late postings, or months before your first statement).
- */
-internal fun activityEntries(spends: List<Spend>, txns: List<Txn>, statements: List<Statement>): List<Spend> {
-    val billedUpTo = statements.groupBy { it.cardId }.mapValues { (_, l) -> l.maxOf { it.statementEpochDay } }
-    val live = spends.filter { s ->
-        val billed = billedUpTo[s.cardId]
-        billed == null || s.epochDay > billed || (s.review == SpendReview.NONE && s.statementTxnId == null)
-    }
-    return live + txns.filter { it.statementId != null }.map { it.asEntry() }
-}
-private val dayTimeFormat = DateTimeFormatter.ofPattern("d MMM, h:mm a", Locale.ENGLISH)
+import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
@@ -174,7 +123,13 @@ fun ActivityScreen(
     var adding by remember { mutableStateOf(false) }
     var flaggedOnly by rememberSaveable { mutableStateOf(false) }
     val ym = YearMonth.parse(month)
-    val flaggedCount = remember(spends) { spends.count { SpendReview.flagged(it.review) } }
+    // Flagged spends in the month on screen (and the card filter), so the count matches what tapping shows.
+    val flaggedCount = remember(spends, month, cardFilter) {
+        spends.count {
+            SpendReview.flagged(it.review) && YearMonth.from(LocalDate.ofEpochDay(it.epochDay)) == ym &&
+                (cardFilter.isEmpty() || it.cardId in cardFilter)
+        }
+    }
     val anyFlagged = flaggedCount > 0
 
     val cardById = remember(cards) { cards.associateBy { it.card.id } }
@@ -354,7 +309,7 @@ fun ActivityScreen(
                     item(key = "d$day") {
                         Row(Modifier.fillMaxWidth().padding(start = 20.dp, end = 20.dp, top = 14.dp, bottom = 4.dp)) {
                             Text(Dates.weekday(LocalDate.ofEpochDay(day)), style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.weight(1f))
-                            val daySpent = spentOf(list)
+                            val daySpent = netSpent(list)
                             if (daySpent > 0) Text(Money.inr(daySpent, true), style = MaterialTheme.typography.labelLarge.tabular, color = MaterialTheme.colorScheme.onSurfaceVariant)
                         }
                     }
@@ -451,291 +406,4 @@ private fun Prompt(icon: androidx.compose.ui.graphics.vector.ImageVector, title:
             Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, null)
         }
     }
-}
-
-/**
- * The month's spends (net of refunds; payments and cashback left out), change vs last month, the top
- * categories as one stacked bar plus chips, and payments/cashback kept apart. Follows the month and
- * filters above, since that's what the list below shows.
- */
-@OptIn(ExperimentalLayoutApi::class)
-@Composable
-private fun SpendSummary(list: List<Spend>, previous: List<Spend>, ym: YearMonth, catById: Map<Long, Category>, onCategory: (Long) -> Unit) {
-    val spent = spentOf(list)
-    val before = spentOf(previous)
-    val payments = list.filter { it.currency == "INR" && it.kind == TxnKind.PAYMENT }.sumOf { it.amountPaise }
-    val cashback = list.filter { it.currency == "INR" && it.kind == TxnKind.CASHBACK }.sumOf { if (it.isCredit) it.amountPaise else -it.amountPaise }
-    val monthName = ym.month.name.lowercase().replaceFirstChar(Char::uppercase)
-
-    Panel(Modifier.padding(horizontal = Gutter, vertical = 8.dp)) {
-        Column {
-            Text("$monthName spends", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
-            Row(verticalAlignment = Alignment.Bottom) {
-                Text(Money.inr(spent.coerceAtLeast(0), true), style = MaterialTheme.typography.headlineMedium.tabular)
-                if (before > 0 && spent > 0) {
-                    val pct = ((spent - before) * 100.0 / before).roundToInt()
-                    Text(
-                        (if (pct >= 0) "  ↑ $pct%" else "  ↓ ${abs(pct)}%") + " vs ${ym.minusMonths(1).month.name.take(3).lowercase().replaceFirstChar(Char::uppercase)}",
-                        style = MaterialTheme.typography.bodySmall, color = if (pct > 0) Amber else Good,
-                        modifier = Modifier.padding(bottom = 6.dp),
-                    )
-                }
-            }
-            if (spent > 0) {
-                Spacer(Modifier.height(12.dp))
-                CategoryBreakdown(list, catById, onCategory)
-            }
-            if (payments > 0 || cashback > 0) {
-                HorizontalDivider(Modifier.padding(vertical = 8.dp), color = MaterialTheme.colorScheme.outlineVariant)
-                Text(
-                    listOfNotNull(
-                        payments.takeIf { it > 0 }?.let { "Paid to cards ${Money.inr(it, true)}" },
-                        cashback.takeIf { it > 0 }?.let { "Cashback ${Money.inr(it, true)}" },
-                    ).joinToString(" · "),
-                    style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-            }
-        }
-    }
-}
-
-/** The top categories of [list] as one stacked bar plus chips; tapping a chip calls [onCategory]. */
-@OptIn(ExperimentalLayoutApi::class)
-@Composable
-internal fun CategoryBreakdown(list: List<Spend>, catById: Map<Long, Category>, onCategory: (Long) -> Unit) {
-    val spent = spentOf(list)
-    val byCat = list.filter { TxnKind.spendSign(it.kind, it.isCredit) != 0 }
-        .groupBy { it.categoryId }
-        .mapValues { (_, l) -> spentOf(l) }
-        .filterValues { it > 0 }
-        .toList().sortedByDescending { it.second }
-    if (byCat.isEmpty() || spent <= 0) return
-    val top = byCat.take(4)
-    val other = byCat.drop(4).sumOf { it.second }
-    fun colorOf(id: Long?) = id?.let { catById[it] }?.let { Color(it.color) }
-    // Weights are the amounts themselves (all > 0, as Modifier.weight requires).
-    Row(
-        Modifier.fillMaxWidth().height(10.dp).clip(RoundedCornerShape(5.dp)),
-        horizontalArrangement = Arrangement.spacedBy(2.dp),
-    ) {
-        top.forEach { (id, v) ->
-            Box(Modifier.weight(v.toFloat()).fillMaxHeight().background(colorOf(id) ?: MaterialTheme.colorScheme.outline))
-        }
-        if (other > 0) Box(Modifier.weight(other.toFloat()).fillMaxHeight().background(MaterialTheme.colorScheme.outlineVariant))
-    }
-    Spacer(Modifier.height(10.dp))
-    FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-        top.forEach { (id, v) ->
-            CategoryChip(
-                id?.let { catById[it] }?.name ?: "Uncategorised", (v * 100 / spent).coerceIn(0L, 100L).toInt(),
-                colorOf(id) ?: MaterialTheme.colorScheme.outline,
-                onClick = id?.let { { onCategory(it) } },
-            )
-        }
-    }
-}
-
-/** Small pill: the category's dot (matching its bar segment), name and share. */
-@Composable
-private fun CategoryChip(name: String, pct: Int, color: Color, onClick: (() -> Unit)?) {
-    Row(
-        Modifier.clip(RoundedCornerShape(50)).background(MaterialTheme.colorScheme.surfaceContainerHighest)
-            .then(if (onClick != null) Modifier.clickable(onClick = onClick) else Modifier)
-            .padding(horizontal = 10.dp, vertical = 6.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Box(Modifier.size(8.dp).clip(CircleShape).background(color))
-        Text(name, style = MaterialTheme.typography.labelMedium, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(start = 6.dp))
-        Text(" $pct%", style = MaterialTheme.typography.labelMedium.tabular, color = MaterialTheme.colorScheme.onSurfaceVariant)
-    }
-}
-
-/** One spend in a list. [withDate] shows the day too, for lists not grouped by day. */
-@Composable
-internal fun SpendRow(s: Spend, cw: CardWithDue?, cat: Category?, withDate: Boolean = false, onClick: () -> Unit) {
-    val counted = TxnKind.spendSign(s.kind, s.isCredit) != 0 && s.kind != TxnKind.REFUND
-    val flagged = SpendReview.flagged(s.review)
-    Row(
-        Modifier.fillMaxWidth().clickable(onClick = onClick).heightIn(min = 56.dp).padding(horizontal = 20.dp, vertical = 8.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Box(Modifier.size(10.dp).clip(CircleShape).background(cat?.let { Color(it.color) } ?: MaterialTheme.colorScheme.outline))
-        Column(Modifier.weight(1f).padding(start = 14.dp)) {
-            Text(s.merchant.ifBlank { TxnKind.label(s.kind) }, style = MaterialTheme.typography.bodyLarge, maxLines = 1, overflow = TextOverflow.Ellipsis)
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Text(
-                    listOfNotNull(
-                        cw?.card?.let { "${it.nickname} •• ${it.last4}" },
-                        if (s.source == STATEMENT_SOURCE) "Statement"
-                        else Instant.ofEpochMilli(s.atMillis).atZone(ZoneId.systemDefault()).format(if (withDate) dayTimeFormat else timeFormat),
-                    ).joinToString(" · "),
-                    style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f, fill = false),
-                )
-                if (s.review == SpendReview.MATCHED) Icon(Icons.Filled.Check, "Matches your statement", Modifier.padding(start = 6.dp).size(14.dp), tint = Good)
-            }
-            if (flagged) {
-                Text(
-                    if (s.review == SpendReview.MISSING) "Missing from statement" else "Amount differs",
-                    style = MaterialTheme.typography.bodySmall, color = Amber,
-                )
-            }
-        }
-        Spacer(Modifier.width(8.dp))
-        Text(
-            (if (s.isCredit) "+" else "") + spendAmountText(s),
-            style = MaterialTheme.typography.bodyLarge.tabular,
-            color = when {
-                s.isCredit -> Good
-                !counted -> MaterialTheme.colorScheme.onSurfaceVariant
-                else -> MaterialTheme.colorScheme.onSurface
-            },
-        )
-    }
-}
-
-@Composable
-fun TxnRow(t: Txn, cw: CardWithDue?, cat: Category?, hPad: androidx.compose.ui.unit.Dp = 20.dp, onClick: () -> Unit) {
-    val counted = TxnKind.spendSign(t.kind, t.isCredit) != 0 && t.kind != TxnKind.REFUND
-    Row(
-        Modifier.fillMaxWidth().clickable(onClick = onClick).heightIn(min = 56.dp).padding(horizontal = hPad, vertical = 8.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Box(Modifier.size(10.dp).clip(CircleShape).background(cat?.let { Color(it.color) } ?: MaterialTheme.colorScheme.outline))
-        Column(Modifier.weight(1f).padding(start = 14.dp)) {
-            Text(t.merchant, style = MaterialTheme.typography.bodyLarge, maxLines = 1, overflow = TextOverflow.Ellipsis)
-            Text(
-                listOfNotNull(
-                    cw?.card?.let { "${it.nickname} •• ${it.last4}" },
-                    if (t.kind == TxnKind.SPEND) cat?.name ?: "Uncategorised" else TxnKind.label(t.kind),
-                    t.note.takeIf { it.isNotBlank() },
-                ).joinToString(" · "),
-                style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1,
-            )
-        }
-        Spacer(Modifier.width(8.dp))
-        Text(
-            (if (t.isCredit) "+" else "") + Money.inr(t.amountPaise, true),
-            style = MaterialTheme.typography.bodyLarge.tabular,
-            color = when {
-                t.isCredit -> Good
-                !counted -> MaterialTheme.colorScheme.onSurfaceVariant
-                else -> MaterialTheme.colorScheme.onSurface
-            },
-        )
-    }
-}
-
-/** One transaction: where it came from, what kind it is, and its category. */
-@OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
-@Composable
-fun TxnSheet(
-    txn: Txn, card: CardWithDue?, categories: List<Category>, statement: Statement?,
-    onDismiss: () -> Unit, onOpenStatement: ((Long) -> Unit)?, onSave: (Long?, String?, String, String) -> Unit,
-    extra: (@Composable () -> Unit)? = null,
-) {
-    var cat by remember { mutableStateOf(txn.categoryId) }
-    var kind by remember { mutableStateOf(txn.kind) }
-    var applyAll by remember { mutableStateOf(false) }
-    var pattern by remember { mutableStateOf(Categorizer.merchantKey(txn.merchant)) }
-    var note by remember { mutableStateOf(txn.note) }
-
-    // A sheet is its own window above the lock cover: keep it out while locked.
-    if (LocalLocked.current) return
-    ModalBottomSheet(onDismissRequest = onDismiss, sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)) {
-        Column(Modifier.padding(horizontal = 20.dp).padding(bottom = 24.dp).verticalScroll(rememberScrollState())) {
-            Text(
-                (if (txn.isCredit) "+" else "") + Money.inr(txn.amountPaise, true),
-                style = MaterialTheme.typography.headlineMedium.tabular, color = if (txn.isCredit) Good else MaterialTheme.colorScheme.onSurface,
-            )
-            Text(txn.merchant, style = MaterialTheme.typography.bodyLarge, modifier = Modifier.padding(top = 4.dp))
-            Text(
-                listOfNotNull(Dates.long(LocalDate.ofEpochDay(txn.epochDay)), card?.card?.let { "${it.nickname} •• ${it.last4}" }).joinToString(" · "),
-                style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-            if (statement != null && onOpenStatement != null) {
-                TextButton(onClick = { onOpenStatement(statement.id) }, contentPadding = PaddingValues(0.dp)) {
-                    Icon(Icons.AutoMirrored.Outlined.ReceiptLong, null, Modifier.size(18.dp))
-                    Text("  From the ${Dates.long(LocalDate.ofEpochDay(statement.statementEpochDay))} statement")
-                }
-            }
-
-            Text("Type", style = MaterialTheme.typography.titleSmall, modifier = Modifier.padding(top = 12.dp, bottom = 6.dp))
-            FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                listOf(TxnKind.SPEND, TxnKind.REFUND, TxnKind.PAYMENT, TxnKind.CASHBACK, TxnKind.FEE).forEach { k ->
-                    FilterChip(selected = kind == k, onClick = { kind = k }, label = { Text(TxnKind.label(k)) })
-                }
-            }
-            Text(
-                "Payments and cashback aren't counted as spending.",
-                style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-
-            Text("Category", style = MaterialTheme.typography.titleSmall, modifier = Modifier.padding(top = 16.dp, bottom = 6.dp))
-            FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                categories.forEach { c ->
-                    FilterChip(
-                        selected = cat == c.id, onClick = { cat = if (cat == c.id) null else c.id }, label = { Text(c.name) },
-                        leadingIcon = { Box(Modifier.size(10.dp).clip(CircleShape).background(Color(c.color))) },
-                    )
-                }
-            }
-            Row(Modifier.fillMaxWidth().clickable { applyAll = !applyAll }.heightIn(min = 44.dp), verticalAlignment = Alignment.CenterVertically) {
-                Checkbox(checked = applyAll, onCheckedChange = null)
-                Text("Use this category for all matching merchants", modifier = Modifier.padding(start = 8.dp))
-            }
-            if (applyAll) {
-                OutlinedTextField(
-                    value = pattern, onValueChange = { pattern = it }, singleLine = true,
-                    label = { Text("Merchant contains") }, modifier = Modifier.fillMaxWidth(),
-                )
-            }
-            OutlinedTextField(
-                value = note, onValueChange = { note = it.take(200) }, label = { Text("Note") },
-                placeholder = { Text("e.g. split with a friend, office expense") },
-                modifier = Modifier.fillMaxWidth().padding(top = 12.dp),
-            )
-            Button(
-                onClick = { onSave(cat, if (applyAll && pattern.isNotBlank()) pattern else null, kind, note) },
-                modifier = Modifier.fillMaxWidth().padding(top = 16.dp),
-            ) { Text("Save") }
-            extra?.invoke()
-        }
-    }
-}
-
-/** Applies what changed in the transaction sheet. */
-suspend fun saveTxnEdits(ledger: Ledger, t: Txn, catId: Long?, pattern: String?, kind: String, note: String) {
-    if (catId != t.categoryId || pattern != null) ledger.setCategory(t, catId, pattern)
-    if (kind != t.kind) ledger.setKind(t.copy(categoryId = catId), kind)
-    if (note.trim() != t.note) ledger.setNote(t.copy(categoryId = catId, kind = kind), note)
-}
-
-private suspend fun exportCsv(
-    context: Context, uri: Uri, rows: List<Spend>, cards: Map<Long, CardWithDue>, cats: Map<Long, Category>,
-) {
-    fun esc(s: String) = "\"" + s.replace("\"", "\"\"") + "\""
-    val csv = buildString {
-        appendLine("date,card,merchant,category,type,debit_credit,amount,currency,note")
-        rows.sortedBy { it.atMillis }.forEach { t ->
-            val c = cards[t.cardId]?.card
-            appendLine(
-                listOf(
-                    LocalDate.ofEpochDay(t.epochDay).toString(),
-                    esc(c?.let { "${it.nickname} ${it.last4}" } ?: ""),
-                    esc(t.merchant),
-                    esc(t.categoryId?.let { cats[it]?.name } ?: ""),
-                    t.kind,
-                    if (t.isCredit) "credit" else "debit",
-                    java.math.BigDecimal(t.amountPaise).movePointLeft(2).toPlainString(),
-                    t.currency,
-                    esc(t.note),
-                ).joinToString(","),
-            )
-        }
-    }
-    val ok = withContext(Dispatchers.IO) {
-        runCatching { context.contentResolver.openOutputStream(uri)?.use { it.write(csv.toByteArray()) } }.isSuccess
-    }
-    Toast.makeText(context, if (ok) "Exported ${rows.size} spends" else "Export failed", Toast.LENGTH_SHORT).show()
 }
