@@ -48,7 +48,7 @@ private val SmsPermissions = arrayOf(Manifest.permission.READ_SMS, Manifest.perm
  * alerts that couldn't be read. Everything is read on this phone only.
  */
 @Composable
-fun SpendTrackingSection(prefs: Prefs, onAlerts: () -> Unit) {
+fun SpendTrackingSection(prefs: Prefs, onAlerts: () -> Unit, onMail: () -> Unit = {}) {
     val context = LocalContext.current
     val app = remember { CardsApp.from(context) }
     val hasTelephony = remember { context.packageManager.hasSystemFeature(PackageManager.FEATURE_TELEPHONY) }
@@ -131,6 +131,8 @@ fun SpendTrackingSection(prefs: Prefs, onAlerts: () -> Unit) {
             onClick = ::toggleNotifications,
             action = { Switch(notifOn, { toggleNotifications() }) },
         )
+        RowDivider()
+        EmailAlertsRow(prefs, onMail)
         if (hasTelephony) {
             RowDivider()
             Column(Modifier.alpha(if (smsOn) 1f else 0.5f)) {

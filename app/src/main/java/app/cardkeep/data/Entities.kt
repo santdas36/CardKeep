@@ -277,6 +277,7 @@ data class Spend(
 object SpendSource {
     const val SMS = "sms"
     const val NOTIFICATION = "notification"
+    const val EMAIL = "email"
     const val MANUAL = "manual"
 }
 

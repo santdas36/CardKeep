@@ -272,6 +272,7 @@ private fun SpendInfo(spend: Spend, onLooksFine: () -> Unit) {
             when (spend.source) {
                 SpendSource.SMS -> "From SMS"
                 SpendSource.NOTIFICATION -> "From a message notification"
+                SpendSource.EMAIL -> "From an email alert"
                 else -> "Added by you"
             },
         )

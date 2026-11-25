@@ -47,6 +47,9 @@ class CardsApp : Application() {
             if (repo.ledger.mailSourceOnce()?.passwordEnc != null) SyncWorker.enable(this@CardsApp)
             // Catch up on bank SMS that arrived while the app wasn't running.
             runCatching { app.cardkeep.ingest.alerts.AlertIngest.scanInbox(this@CardsApp) }
+            // Alert emails: keep the 15-minute check in step with the settings, and catch up now.
+            app.cardkeep.ingest.alerts.EmailAlerts.schedule(this@CardsApp)
+            runCatching { app.cardkeep.ingest.alerts.EmailAlerts.check(this@CardsApp) }
         }
     }
 

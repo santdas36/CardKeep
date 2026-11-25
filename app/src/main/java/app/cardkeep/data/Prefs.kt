@@ -15,6 +15,16 @@ class Prefs(context: Context) {
         get() = sp.getString("default_leads", "5,2,0") ?: "5,2,0"
         set(v) = sp.edit { putString("default_leads", v) }
 
+    /** Banks (issuer names) whose alert emails are read. */
+    var emailAlertBanks: Set<String>
+        get() = sp.getStringSet("email_alert_banks", emptySet()).orEmpty().toSet()
+        set(v) = sp.edit { putStringSet("email_alert_banks", v) }
+
+    /** Received time of the newest alert email read, so each check only reads newer ones. */
+    var emailAlertsUpTo: Long
+        get() = sp.getLong("email_alerts_up_to", 0L)
+        set(v) = sp.edit { putLong("email_alerts_up_to", v) }
+
     /** Payment alerts (spend ids) already used to mark a bill paid, so each counts once. */
     var autoPaidSpends: Set<Long>
         get() = sp.getStringSet("auto_paid_spends", emptySet()).orEmpty().mapNotNull { it.toLongOrNull() }.toSet()

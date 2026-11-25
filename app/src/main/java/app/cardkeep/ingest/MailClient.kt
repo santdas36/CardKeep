@@ -37,6 +37,30 @@ class MailPdf(
     val bytes: ByteArray,
 )
 
+/** An alert email, as text. */
+class MailText(val msgId: String, val from: String, val subject: String, val receivedAt: Long, val text: String)
+
+private val dropBlocks = Regex("<(style|script|head)[^>]*>.*?</\\1>", setOf(RegexOption.IGNORE_CASE, RegexOption.DOT_MATCHES_ALL))
+private val lineTags = Regex("<\\s*(br|/p|/div|/tr|/li|/h\\d|/table)[^>]*>", RegexOption.IGNORE_CASE)
+private val cellTags = Regex("<\\s*/t[dh][^>]*>", RegexOption.IGNORE_CASE)
+private val anyTag = Regex("<[^>]+>")
+private val numericEntity = Regex("&#(x?)([0-9a-fA-F]+);")
+private val namedEntities = mapOf("&nbsp;" to " ", "&amp;" to "&", "&lt;" to "<", "&gt;" to ">", "&quot;" to "\"", "&#39;" to "'", "&apos;" to "'", "&rupee;" to "₹")
+
+/** HTML email to plain text: block ends become line breaks, table cells spaces, entities decoded. */
+internal fun htmlToText(html: String): String {
+    var s = dropBlocks.replace(html, " ")
+    s = lineTags.replace(s, "\n")
+    s = cellTags.replace(s, " ")
+    s = anyTag.replace(s, "")
+    s = numericEntity.replace(s) { m ->
+        val code = m.groupValues[2].toIntOrNull(if (m.groupValues[1].isNotEmpty()) 16 else 10)
+        code?.let { String(Character.toChars(it)) } ?: m.value
+    }
+    namedEntities.forEach { (k, v) -> s = s.replace(k, v, ignoreCase = true) }
+    return s.lines().map { it.replace(Regex("[ \\t\\u00A0]+"), " ").trim() }.filter { it.isNotEmpty() }.joinToString("\n")
+}
+
 /**
  * Read-only IMAP over TLS. Opens folders read-only, so nothing is ever marked read or moved.
  *
@@ -140,6 +164,59 @@ class MailClient(private val host: String, private val port: Int, private val us
         } finally {
             runCatching { folder.close(false) }
         }
+    }
+
+    /**
+     * Alert emails from [senders] (addresses or domains) received after [since], oldest first, as plain text.
+     * At most [limit] of the newest are read. Bodies are small; attachments are never downloaded.
+     */
+    fun fetchAlerts(since: Date, senders: List<String>, limit: Int = 100): List<MailText> = withStore { store ->
+        if (senders.isEmpty()) return@withStore emptyList()
+        val folder = allMail(store) as IMAPFolder
+        folder.open(Folder.READ_ONLY)
+        try {
+            val gmail = (store as? IMAPStore)?.hasCapability("X-GM-EXT-1") == true
+            val found: List<Message> = if (gmail) {
+                // Gmail's "after:" is by day; the exact cut-off is applied below.
+                val after = SimpleDateFormat("yyyy/MM/dd", Locale.US).format(Date(since.time - 86_400_000L))
+                val uids = rawSearch(folder, "from:(${senders.joinToString(" OR ")}) after:$after")
+                if (uids.isEmpty()) emptyList() else folder.getMessagesByUID(uids.toLongArray()).filterNotNull()
+            } else {
+                val from = if (senders.size == 1) FromStringTerm(senders[0]) else OrTerm(senders.map { FromStringTerm(it) }.toTypedArray())
+                folder.search(AndTerm(ReceivedDateTerm(ComparisonTerm.GE, since), from)).toList()
+            }
+            if (found.isEmpty()) return@withStore emptyList()
+            folder.fetch(found.toTypedArray(), FetchProfile().apply { add(FetchProfile.Item.ENVELOPE); add(UIDFolder.FetchProfileItem.UID) })
+            found.map { it to (it.receivedDate ?: it.sentDate ?: Date()).time }
+                .filter { it.second > since.time }
+                .sortedBy { it.second }
+                .takeLast(limit)
+                .mapNotNull { (m, at) ->
+                    val text = runCatching { bodyText(m) }.getOrNull()?.takeIf { it.isNotBlank() } ?: return@mapNotNull null
+                    MailText(
+                        msgId = (m as? MimeMessage)?.messageID ?: "${folder.fullName}:${folder.getUID(m)}",
+                        from = (m.from?.firstOrNull() as? InternetAddress)?.address.orEmpty(),
+                        subject = runCatching { m.subject }.getOrNull().orEmpty(),
+                        receivedAt = at,
+                        text = text,
+                    )
+                }
+        } finally {
+            runCatching { folder.close(false) }
+        }
+    }
+
+    /** The message as plain text: its text/plain part, else its HTML with the tags taken out. */
+    private fun bodyText(p: Part): String? {
+        if (p.isMimeType("multipart/*")) {
+            val mp = p.content as? Multipart ?: return null
+            val parts = (0 until mp.count).map { mp.getBodyPart(it) }
+            parts.firstOrNull { it.isMimeType("text/plain") }?.let { return it.content as? String }
+            return parts.firstNotNullOfOrNull { bodyText(it) }
+        }
+        if (p.isMimeType("text/plain")) return p.content as? String
+        if (p.isMimeType("text/html")) return (p.content as? String)?.let(::htmlToText)
+        return null
     }
 
     private fun looksLikeStatement(subject: String, fileName: String) = listOf(subject, fileName).any {

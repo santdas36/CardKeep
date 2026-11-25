@@ -102,6 +102,21 @@ internal object AlertRules {
         r("OneCard", SPEND, false, "spent $AMTC (?:at $M )?(?:on|using|with) (?:your )?(?:\\w+ ){0,2}card ending (?:with )?$XL4", strict = true),
     )
 
+    /** Email dates: "20 Nov, 2026 13:08:34" (the " at " is taken out first) or "25-Nov-26". */
+    private const val EDATE = "\\d{1,2}[-\\s][A-Za-z]{3,9}[-,\\s]*\\d{2,4}(?:\\s+\\d{1,2}:\\d{2}(?::\\d{2})?)?"
+
+    /**
+     * Alert emails. Only these run on an email (never the SMS rules or the generic fallback), because a
+     * whole email carries offers, links and help text that SMS rules would trip over.
+     */
+    val email: List<AlertRule> = listOf(
+        // ---- HDFC Bank (alerts@hdfcbank.bank.in)
+        r(HDFC, SPEND, false, "$AMTC has been debited from your HDFC Bank (?<ct>Credit|Debit) Card ending $XL4 towards $M on (?<d>$EDATE)"),
+        r(HDFC, REFUND, true, "reversal of $AMTC has been (?:initiated|processed) to your HDFC Bank (?<ct>Credit|Debit) Card ending $XL4 From Merchant:\\s*$M Date Time:\\s*(?<d>$EDATE)"),
+        // ---- slice (noreply@slice.bank.in)
+        r("Slice", SPEND, false, "$AMTC spent on your slice credit card $XL4 via \\w+\\.?\\s*Transaction date (?<d>$EDATE) To $M RRN (?<ref>\\d+)", "credit"),
+    )
+
     // ---- Rejection: anything that is not a completed card transaction.
 
     private val withoutOtp = Regex("without\\s+(?:pin\\s*/\\s*)?otp")

@@ -65,6 +65,25 @@ object AlertIngest {
         }
     }
 
+    /**
+     * Logs one alert email. Emails that aren't a transaction (offers, notices) are skipped quietly; one that
+     * is but matches no card goes to the alerts we couldn't read, like an SMS would.
+     */
+    suspend fun handleEmail(app: CardsApp, from: String, subject: String, text: String, receivedAt: Long): Spend? = lock.withLock {
+        val log = app.repo.spendLog
+        val parsed = AlertParser.parseEmail(subject, text) ?: return@withLock null
+        val alert = parsed.copy(atMillis = EmailAlerts.betterTime(parsed.atMillis, receivedAt))
+        val card = matchCard(app.repo.allCards().filter { it.archivedAt == null }, alert)
+        if (card == null) {
+            val digits = alert.last4?.let { " ending $it" }.orEmpty()
+            log.miss(from, "$subject\n$text".take(500), "No ${alert.issuer ?: "matching"} card$digits in your wallet", SpendSource.EMAIL)
+            return@withLock null
+        }
+        log.record(alert, card, SpendSource.EMAIL, receivedAt)?.also {
+            if (it.kind == TxnKind.PAYMENT) app.repo.autoMarkPaid(card.id)
+        }
+    }
+
     /** The wallet card an alert is about: same bank and last digits; without digits, the bank's only card. */
     fun matchCard(cards: List<Card>, alert: CardAlert): Card? {
         val sameBank = cards.filter { alert.issuer == null || it.issuer.equals(alert.issuer, ignoreCase = true) }

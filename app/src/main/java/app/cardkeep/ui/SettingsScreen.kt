@@ -119,7 +119,7 @@ fun SettingsScreen(prefs: Prefs, onMail: () -> Unit, onPasswords: () -> Unit = {
             }
 
             SectionHeader("Spend tracking")
-            SpendTrackingSection(prefs, onAlerts)
+            SpendTrackingSection(prefs, onAlerts, onMail)
 
             SectionHeader("Data")
             BackupSection()

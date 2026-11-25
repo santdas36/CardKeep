@@ -179,6 +179,22 @@ object AlertParser {
         return generic(resolved, text, now)
     }
 
+    private val atTime = Regex("(\\d{4})\\s+at\\s+(\\d{1,2}:\\d{2})", OPT)
+
+    /**
+     * A bank's alert email, as plain text. Only the email rules are tried, and the subject decides what's
+     * rejected: the body is full of offers, links and help text.
+     */
+    fun parseEmail(subject: String, body: String, now: Long = System.currentTimeMillis()): CardAlert? {
+        if (body.isBlank() || AlertRules.isRejected(subject)) return null
+        val text = atTime.replace(newlines.replace(body, " "), "$1 $2").replace(Regex("\\s+"), " ").trim()
+        for (rule in AlertRules.email) {
+            val m = rule.re.find(text) ?: continue
+            return fromRule(rule, m, text, now)
+        }
+        return null
+    }
+
     private fun group(m: MatchResult, name: String): String? =
         runCatching { m.groups[name]?.value }.getOrNull()
 
