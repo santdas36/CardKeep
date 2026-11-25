@@ -174,7 +174,8 @@ fun ActivityScreen(
     var adding by remember { mutableStateOf(false) }
     var flaggedOnly by rememberSaveable { mutableStateOf(false) }
     val ym = YearMonth.parse(month)
-    val anyFlagged = remember(spends) { spends.any { SpendReview.flagged(it.review) } }
+    val flaggedCount = remember(spends) { spends.count { SpendReview.flagged(it.review) } }
+    val anyFlagged = flaggedCount > 0
 
     val cardById = remember(cards) { cards.associateBy { it.card.id } }
     val catById = remember(categories) { categories.associateBy { it.id } }
@@ -290,20 +291,29 @@ fun ActivityScreen(
                                 Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, "Next month")
                             }
                             Spacer(Modifier.weight(1f))
+                            // Spends a statement disagrees with: tap to list only those.
+                            if (flaggedCount > 0) {
+                                FilterChip(
+                                    selected = flaggedOnly, onClick = { flaggedOnly = !flaggedOnly },
+                                    label = { Text("$flaggedCount", style = MaterialTheme.typography.labelLarge.tabular) },
+                                    leadingIcon = { Icon(Icons.Outlined.WarningAmber, "Needs a look", Modifier.size(18.dp), tint = Amber) },
+                                )
+                            }
                             val active = cardFilter.size + catFilter.size
                             TextButton(onClick = { showFilters = true }, contentPadding = PaddingValues(start = 12.dp, end = 12.dp)) {
                                 BadgedBox(badge = { if (active > 0) Badge { Text("$active") } }) { Icon(Icons.Outlined.FilterList, null) }
                                 Text("  Filter")
                             }
                         }
-                        if (anyFlagged || cardFilter.isNotEmpty() || catFilter.isNotEmpty()) {
+                        if (flaggedOnly) {
+                            Text(
+                                "Spends your statement doesn't agree with. Tap one to keep, fix or remove it.",
+                                style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier.padding(horizontal = 20.dp, vertical = 4.dp),
+                            )
+                        }
+                        if (cardFilter.isNotEmpty() || catFilter.isNotEmpty()) {
                             FlowRow(Modifier.padding(horizontal = Gutter), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                                if (anyFlagged) {
-                                    FilterChip(
-                                        selected = flaggedOnly, onClick = { flaggedOnly = !flaggedOnly }, label = { Text("Needs a look") },
-                                        leadingIcon = { Icon(Icons.Outlined.WarningAmber, null, Modifier.size(18.dp)) },
-                                    )
-                                }
                                 cardFilter.forEach { id ->
                                     cardById[id]?.let { cw ->
                                         InputChip(
