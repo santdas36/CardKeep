@@ -125,6 +125,7 @@ fun DetailScreen(
     repo: Repo,
     statements: List<Statement> = emptyList(),
     onOpenStatement: (Long) -> Unit = {},
+    onOpenSpends: () -> Unit = {},
     onBack: () -> Unit,
     onEdit: () -> Unit,
 ) {
@@ -337,7 +338,7 @@ fun DetailScreen(
                 }
             }
 
-            CardSpendLog(c, latest?.statementEpochDay)
+            CardSpendLog(c, latest?.statementEpochDay, onOpenSpends)
 
             // Rewards, from imported statements.
             val pointsStmt = stmts.firstOrNull { it.rewardPointsBalance != null || it.rewardPointsEarned != null }
