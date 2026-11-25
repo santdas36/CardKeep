@@ -136,6 +136,8 @@ fun SettingsScreen(prefs: Prefs, onMail: () -> Unit, onPasswords: () -> Unit = {
                 val version = remember { context.packageManager.getPackageInfo(context.packageName, 0).versionName }
                 ListRow(Icons.Outlined.Info, "Cards", "Version $version")
                 RowDivider()
+                UpdateRow()
+                RowDivider()
                 ListRow(
                     Icons.Outlined.Code, "Source code", "github.com/santdas36/CardKeep", chevron = true,
                     onClick = { runCatching { context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("https://github.com/santdas36/CardKeep"))) } },

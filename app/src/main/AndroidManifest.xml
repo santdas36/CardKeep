@@ -13,6 +13,8 @@
     <uses-permission android:name="android.permission.NFC" />
     <uses-feature android:name="android.hardware.nfc" android:required="false" />
     <uses-permission android:name="android.permission.CAMERA" />
+    <!-- Installs an update you downloaded from Settings → Check for updates. -->
+    <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
     <!-- Spend tracking (optional, off until turned on): bank card alerts are read on the phone only. -->
     <uses-permission android:name="android.permission.READ_SMS" />
     <uses-permission android:name="android.permission.RECEIVE_SMS" />
@@ -92,6 +94,7 @@
                 <action android:name="android.service.notification.NotificationListenerService" />
             </intent-filter>
         </service>
+        <receiver android:name=".update.InstallReceiver" android:exported="false" />
         <receiver android:name=".reminders.ReminderReceiver" android:exported="false" />
         <receiver android:name=".reminders.ActionReceiver" android:exported="false" />
         <receiver android:name=".reminders.BootReceiver" android:exported="false">

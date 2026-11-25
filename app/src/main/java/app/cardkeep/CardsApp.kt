@@ -34,6 +34,7 @@ class CardsApp : Application() {
         repo = Repo(db.dao(), db.ledger(), this)
         Notifications.createChannel(this)
         SweepWorker.enqueue(this)
+        app.cardkeep.update.Updater.cleanUp(this) // a downloaded update, now installed or abandoned
         scope.launch {
             repo.ledger.ensureSeeded()
             if (prefs.parserVersion < PARSER_VERSION) {
