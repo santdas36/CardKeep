@@ -100,6 +100,10 @@ import app.cardkeep.data.Prefs
 import app.cardkeep.reminders.Notifications
 import app.cardkeep.reminders.Reminders
 import kotlinx.coroutines.launch
+import androidx.compose.material.icons.outlined.Sms
+import androidx.compose.material.icons.outlined.Notifications
+import app.cardkeep.ingest.alerts.AlertIngest
+import androidx.compose.runtime.mutableStateOf
 
 /** How the first-run screens were left: add a card ("scan", "tap" or null to type it), or nothing. */
 sealed interface OnboardingExit {
@@ -107,10 +111,11 @@ sealed interface OnboardingExit {
     data object Later : OnboardingExit
 }
 
-private const val PAGES = 3
+private const val PAGES = 4
 
 /**
- * First run: what the app is, the permissions reminders need, then add a first card or restore a backup.
+ * First run: what the app is, the permissions reminders need, spend tracking from bank alerts, then add a
+ * first card or restore a backup.
  * Each page is a picture (hero), a title and one line, then its controls. Dots and an arrow at the bottom.
  */
 @Composable
@@ -130,6 +135,7 @@ fun OnboardingScreen(prefs: Prefs, onExit: (OnboardingExit) -> Unit) {
                 when (page) {
                     0 -> WelcomePage()
                     1 -> RemindersPage(prefs)
+                    2 -> SpendsPage(prefs)
                     else -> FirstCardPage(onAdd = { onExit(OnboardingExit.AddCard(it)) }, onRestore = restore)
                 }
             }
@@ -366,6 +372,95 @@ private fun PermissionRow(icon: ImageVector, title: String, allowed: Boolean, on
         } else {
             Button(onClick = onAllow, contentPadding = PaddingValues(horizontal = 16.dp), modifier = Modifier.height(34.dp)) { Text("Allow") }
         }
+    }
+}
+
+// ---------- Spend tracking ----------
+
+/** A bank alert arriving, and the spend it becomes in the log. */
+@Composable
+private fun SpendPreview() {
+    Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        Row(
+            Modifier.fillMaxWidth(0.86f).alpha(0.75f).clip(RoundedCornerShape(18.dp))
+                .background(MaterialTheme.colorScheme.surfaceContainer).padding(horizontal = 14.dp, vertical = 12.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Icon(Icons.Outlined.Sms, null, tint = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(18.dp))
+            Text(
+                "Spent Rs.450 On HDFC Bank Card 4821 At SWIGGY",
+                style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1,
+                modifier = Modifier.padding(start = 10.dp),
+            )
+        }
+        Row(
+            Modifier.fillMaxWidth(0.94f).shadow(12.dp, RoundedCornerShape(20.dp)).clip(RoundedCornerShape(20.dp))
+                .background(MaterialTheme.colorScheme.surfaceContainerHigh).padding(14.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Box(Modifier.size(10.dp).clip(CircleShape).background(Color(0xFFEF6C00)))
+            Column(Modifier.weight(1f).padding(horizontal = 12.dp)) {
+                Text("Swiggy", style = MaterialTheme.typography.bodyMedium)
+                Text("Regalia Gold ••4821 · Food & dining", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+            Text("₹450", style = MaterialTheme.typography.bodyMedium)
+        }
+    }
+}
+
+@Composable
+private fun SpendsPage(prefs: Prefs) {
+    val context = LocalContext.current
+    val app = remember { app.cardkeep.CardsApp.from(context) }
+    var tick by remember { mutableIntStateOf(0) }
+    LifecycleEventEffect(Lifecycle.Event.ON_RESUME) { tick++ }
+    val hasTelephony = remember { context.packageManager.hasSystemFeature(PackageManager.FEATURE_TELEPHONY) }
+    val sms = remember(tick) { prefs.readSms && AlertIngest.hasSmsPermission(context) }
+    val notif = remember(tick) { prefs.readNotifications && AlertIngest.hasNotificationAccess(context) }
+    var blocked by remember { mutableStateOf(false) }
+    val askSms = rememberLauncherForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { granted ->
+        if (granted.values.all { it }) {
+            prefs.readSms = true
+            // Fill the log from the last few months straight away.
+            app.scope.launch { AlertIngest.scanInbox(app, System.currentTimeMillis() - AlertIngest.BACKFILL_DAYS * 86_400_000L) }
+        } else blocked = true
+        tick++
+    }
+
+    Page(
+        hero = { SpendPreview() }, title = "Every spend, as it happens",
+        body = "Your bank's alerts are logged against your cards and checked when the statement arrives. Read on your phone only.",
+    ) {
+        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            if (hasTelephony) {
+                PermissionRow(Icons.Outlined.Sms, "Bank SMS", sms) {
+                    askSms.launch(arrayOf(Manifest.permission.READ_SMS, Manifest.permission.RECEIVE_SMS))
+                }
+            }
+            PermissionRow(Icons.Outlined.Notifications, "Message notifications (RCS)", notif) {
+                prefs.readNotifications = true
+                val intent = if (Build.VERSION.SDK_INT >= 30) {
+                    Intent(Settings.ACTION_NOTIFICATION_LISTENER_DETAIL_SETTINGS)
+                        .putExtra(Settings.EXTRA_NOTIFICATION_LISTENER_COMPONENT_NAME, AlertIngest.listenerComponent(context).flattenToString())
+                } else Intent(Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS)
+                openSystemSettings(context, intent)
+            }
+        }
+    }
+
+    if (blocked) {
+        ConfirmDialog(
+            title = "Android is blocking this",
+            body = "Android may block SMS access for apps installed outside the Play Store.\n\n" +
+                "Open App info → ⋮ (top right) → Allow restricted settings, then tap Allow again. You can also turn this on later in Settings.",
+            confirmLabel = "Open App info",
+            destructive = false,
+            onDismiss = { blocked = false },
+            onConfirm = {
+                blocked = false
+                openSystemSettings(context, Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, Uri.parse("package:${context.packageName}")))
+            },
+        )
     }
 }
 
