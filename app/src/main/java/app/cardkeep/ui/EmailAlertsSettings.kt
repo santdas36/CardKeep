@@ -22,7 +22,6 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import app.cardkeep.CardsApp
-import app.cardkeep.data.Prefs
 import app.cardkeep.ingest.alerts.EmailAlerts
 import kotlinx.coroutines.launch
 
@@ -31,13 +30,12 @@ import kotlinx.coroutines.launch
  * switch per bank, for banks of your cards whose emails we can read. Needs email set up first.
  */
 @Composable
-fun EmailAlertsRow(prefs: Prefs, onMail: () -> Unit) {
+fun EmailAlertsRow(on: Set<String>, onChange: (Set<String>) -> Unit, onMail: () -> Unit) {
     val context = LocalContext.current
     val app = remember { CardsApp.from(context) }
     val mail by app.repo.ledger.mailSource.collectAsStateWithLifecycle(initialValue = null)
     val cards by app.repo.everyCard.collectAsStateWithLifecycle(initialValue = emptyList())
     val banks = EmailAlerts.senders.keys.filter { bank -> cards.any { it.card.archivedAt == null && it.card.issuer == bank } }
-    var on by remember { mutableStateOf(prefs.emailAlertBanks) }
     var sheet by remember { mutableStateOf(false) }
     val connected = mail?.passwordEnc != null
     val active = banks.filter { it in on }
@@ -47,8 +45,8 @@ fun EmailAlertsRow(prefs: Prefs, onMail: () -> Unit) {
         when {
             !connected -> "Connect email first"
             banks.isEmpty() -> "None of your banks yet"
-            active.isEmpty() -> "For banks that email alerts"
-            else -> active.joinToString(", ") + " · every 15 min"
+            active.isEmpty() -> "Off"
+            else -> active.joinToString(", ")
         },
         chevron = true,
         onClick = when {
@@ -60,8 +58,7 @@ fun EmailAlertsRow(prefs: Prefs, onMail: () -> Unit) {
 
     if (sheet) {
         EmailAlertsSheet(banks, on, onDismiss = { sheet = false }) { bank, enabled ->
-            on = if (enabled) on + bank else on - bank
-            prefs.emailAlertBanks = on
+            onChange(if (enabled) on + bank else on - bank)
             EmailAlerts.schedule(context)
             if (enabled) app.scope.launch { runCatching { EmailAlerts.check(context) } }
         }

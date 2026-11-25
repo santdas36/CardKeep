@@ -35,8 +35,11 @@ object EmailAlerts {
     private const val DAY = 86_400_000L
     private val lock = Mutex()
 
-    /** Reads new alert emails from the turned-on banks and logs them. Returns how many spends were added. */
-    suspend fun check(context: Context): Int = withContext(Dispatchers.IO) {
+    /**
+     * Reads new alert emails from the turned-on banks and logs them. With [sinceMillis] (a scan of past days)
+     * it reads everything from then, not just what's new. Returns how many spends were added.
+     */
+    suspend fun check(context: Context, sinceMillis: Long? = null): Int = withContext(Dispatchers.IO) {
         val app = CardsApp.from(context)
         lock.withLock {
             val banks = app.prefs.emailAlertBanks.filter { it in senders }
@@ -44,13 +47,15 @@ object EmailAlerts {
             val src = app.repo.ledger.mailSourceOnce() ?: return@withLock 0
             val password = MailCrypt.dec(src.passwordEnc) ?: return@withLock 0
             val now = System.currentTimeMillis()
-            val since = app.prefs.emailAlertsUpTo.takeIf { it > 0 } ?: (now - FIRST_LOOK_DAYS * DAY)
-            val mails = MailClient(src.host, src.port, src.user, password).fetchAlerts(Date(since), banks.flatMap { senders.getValue(it) })
+            val since = sinceMillis ?: app.prefs.emailAlertsUpTo.takeIf { it > 0 } ?: (now - FIRST_LOOK_DAYS * DAY)
+            val mails = MailClient(src.host, src.port, src.user, password)
+                .fetchAlerts(Date(since), banks.flatMap { senders.getValue(it) }, limit = if (sinceMillis != null) 500 else 100)
             var added = 0
             for (m in mails) {
                 if (AlertIngest.handleEmail(app, m.from, m.subject, m.text, m.receivedAt) != null) added++
             }
-            app.prefs.emailAlertsUpTo = maxOf(since, mails.maxOfOrNull { it.receivedAt } ?: since)
+            // A scan of past days never moves the mark back.
+            app.prefs.emailAlertsUpTo = maxOf(app.prefs.emailAlertsUpTo, since, mails.maxOfOrNull { it.receivedAt } ?: since)
             added
         }
     }

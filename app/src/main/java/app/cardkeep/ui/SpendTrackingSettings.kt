@@ -37,6 +37,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import app.cardkeep.CardsApp
 import app.cardkeep.data.Prefs
 import app.cardkeep.ingest.alerts.AlertIngest
+import app.cardkeep.ingest.alerts.EmailAlerts
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -44,8 +45,9 @@ import kotlinx.coroutines.withContext
 private val SmsPermissions = arrayOf(Manifest.permission.READ_SMS, Manifest.permission.RECEIVE_SMS)
 
 /**
- * Settings → Spend tracking: read bank SMS and message notifications (RCS), scan the inbox again, and the
- * alerts that couldn't be read. Everything is read on this phone only.
+ * Settings → Spend tracking, in three parts: SMS and message notifications (every bank), alert emails (only
+ * the banks you pick, since few send them), and a scan of past days across both, with the alerts that
+ * couldn't be read. Everything is read on this phone only.
  */
 @Composable
 fun SpendTrackingSection(prefs: Prefs, onAlerts: () -> Unit, onMail: () -> Unit = {}) {
@@ -60,16 +62,23 @@ fun SpendTrackingSection(prefs: Prefs, onAlerts: () -> Unit, onMail: () -> Unit 
     var awaitingAccess by remember { mutableStateOf(false) }
     var scanning by remember { mutableStateOf(false) }
     var scanResult by remember { mutableStateOf<String?>(null) }
+    var emailBanks by remember { mutableStateOf(prefs.emailAlertBanks) }
+    val mail by app.repo.ledger.mailSource.collectAsStateWithLifecycle(initialValue = null)
+    val emailOn = mail?.passwordEnc != null && emailBanks.any { it in EmailAlerts.senders }
     // What Android is blocking ("SMS access" or "notification access"), to point the user at "Allow restricted settings".
     var blocked by remember { mutableStateOf<String?>(null) }
 
-    fun scan(days: Int) {
-        if (scanning) return
+    /** Looks back [days] in SMS and in alert emails, whichever are on. */
+    fun scan(days: Int, sms: Boolean = prefs.readSms && AlertIngest.hasSmsPermission(context), email: Boolean = emailOn) {
+        if (scanning || (!sms && !email)) return
         scanning = true
         app.scope.launch {
-            val added = AlertIngest.scanInbox(app, System.currentTimeMillis() - days * 86_400_000L)
+            val since = System.currentTimeMillis() - days * 86_400_000L
+            var added = if (sms) AlertIngest.scanInbox(app, since) else 0
+            val emailFailed = email && runCatching { added += EmailAlerts.check(context, since) }.isFailure
             withContext(Dispatchers.Main) {
-                val text = when (added) { 0 -> "No new spends found"; 1 -> "Added 1 spend"; else -> "Added $added spends" }
+                val text = when (added) { 0 -> "No new spends found"; 1 -> "Added 1 spend"; else -> "Added $added spends" } +
+                    if (emailFailed) ". Couldn't read email" else ""
                 scanning = false
                 scanResult = text
                 Toast.makeText(context, text, Toast.LENGTH_SHORT).show()
@@ -81,7 +90,7 @@ fun SpendTrackingSection(prefs: Prefs, onAlerts: () -> Unit, onMail: () -> Unit 
         if (granted.values.all { it }) {
             prefs.readSms = true
             smsOn = true
-            scan(AlertIngest.BACKFILL_DAYS)
+            scan(AlertIngest.BACKFILL_DAYS, sms = true, email = false)
         } else if (SmsPermissions.any { !ActivityCompat.shouldShowRequestPermissionRationale(context as Activity, it) }) {
             // Denied without a prompt to answer: Android won't ask again (restricted setting, or "don't ask again").
             blocked = "SMS access"
@@ -116,42 +125,48 @@ fun SpendTrackingSection(prefs: Prefs, onAlerts: () -> Unit, onMail: () -> Unit 
         openSystemSettings(context, intent)
     }
 
+    // Every bank: alerts by SMS and in message notifications.
     Panel(padded = false) {
         if (hasTelephony) {
             ListRow(
-                Icons.Outlined.Sms, "Bank SMS", "Card alerts from your text messages",
+                Icons.Outlined.Sms, "Bank SMS", "Card alerts from every bank",
                 onClick = ::toggleSms,
                 action = { Switch(smsOn, { toggleSms() }) },
             )
             RowDivider()
         }
         ListRow(
-            Icons.Outlined.Notifications, "Message notifications (RCS)",
-            "Reads alerts from Google Messages and others",
+            Icons.Outlined.Notifications, "Message notifications", "Alerts sent over RCS",
             onClick = ::toggleNotifications,
             action = { Switch(notifOn, { toggleNotifications() }) },
         )
-        RowDivider()
-        EmailAlertsRow(prefs, onMail)
-        if (hasTelephony) {
-            RowDivider()
-            Column(Modifier.alpha(if (smsOn) 1f else 0.5f)) {
-                ListRow(
-                    Icons.Outlined.History, "Scan past ${AlertIngest.BACKFILL_DAYS} days",
-                    when {
-                        !smsOn -> "Turn on Bank SMS first"
-                        scanning -> "Reading your messages…"
-                        else -> scanResult ?: "Find spends you missed"
-                    },
-                    onClick = if (smsOn && !scanning) ({ scan(AlertIngest.BACKFILL_DAYS) }) else null,
-                    action = when {
-                        scanning -> ({ CircularProgressIndicator(Modifier.size(20.dp), strokeWidth = 2.dp) })
-                        // Bank alerts that couldn't be logged: a small warning that opens the list.
-                        misses.isNotEmpty() -> ({ StatusPill("${misses.size} unread", Amber, onClick = onAlerts) })
-                        else -> null
-                    },
-                )
-            }
+    }
+
+    // Only the banks you pick: few send alerts by email, and some (slice) send nothing else.
+    Panel(Modifier.padding(top = 10.dp), padded = false) {
+        EmailAlertsRow(emailBanks, onChange = { emailBanks = it; prefs.emailAlertBanks = it }, onMail = onMail)
+    }
+
+    // Look back across whichever of the two is on.
+    val canScan = smsOn || emailOn
+    val sources = listOfNotNull("SMS".takeIf { smsOn }, "email".takeIf { emailOn }).joinToString(" and ")
+    Panel(Modifier.padding(top = 10.dp), padded = false) {
+        Column(Modifier.alpha(if (canScan) 1f else 0.5f)) {
+            ListRow(
+                Icons.Outlined.History, "Scan past ${AlertIngest.BACKFILL_DAYS} days",
+                when {
+                    !canScan -> "Turn on Bank SMS or email alerts first"
+                    scanning -> "Reading your $sources…"
+                    else -> scanResult ?: "Find spends you missed in $sources"
+                },
+                onClick = if (canScan && !scanning) ({ scan(AlertIngest.BACKFILL_DAYS) }) else null,
+                action = when {
+                    scanning -> ({ CircularProgressIndicator(Modifier.size(20.dp), strokeWidth = 2.dp) })
+                    // Bank alerts that couldn't be logged: a small warning that opens the list.
+                    misses.isNotEmpty() -> ({ StatusPill("${misses.size} unread", Amber, onClick = onAlerts) })
+                    else -> null
+                },
+            )
         }
     }
 
