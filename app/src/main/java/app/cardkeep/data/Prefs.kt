@@ -37,6 +37,11 @@ class Prefs(context: Context) {
         get() = sp.getString("palette", "indigo") ?: "indigo"
         set(v) = sp.edit { putString("palette", v) }
 
+    /** The last solid palette picked, restored when switching back from wallpaper colours. */
+    var solidPalette: String
+        get() = sp.getString("solid_palette", null) ?: palette.takeIf { it != "dynamic" } ?: "indigo"
+        set(v) = sp.edit { putString("solid_palette", v) }
+
     /** "system", "light" or "dark". */
     var themeMode: String
         get() = sp.getString("theme_mode", "system") ?: "system"

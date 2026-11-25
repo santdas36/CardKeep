@@ -4,7 +4,6 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.Column
@@ -15,7 +14,6 @@ import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Check
-import androidx.compose.material.icons.outlined.Wallpaper
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -53,17 +51,37 @@ fun AppearanceSection(prefs: Prefs) {
         "Colour", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.onSurfaceVariant,
         modifier = Modifier.padding(top = 16.dp, bottom = 8.dp),
     )
-    // An even grid: equal columns, rows balanced (9 swatches → 3×3, 8 → 4×2), so nothing hangs off a ragged edge.
-    BoxWithConstraints(Modifier.fillMaxWidth()) {
-        val n = Palettes.all.size
-        val fit = ((maxWidth + SwatchGap) / (MinSwatchCell + SwatchGap)).toInt().coerceAtLeast(3)
-        val rows = (n + fit - 1) / fit
-        val cols = (n + rows - 1) / rows
-        Column(verticalArrangement = Arrangement.spacedBy(SwatchGap)) {
-            Palettes.all.chunked(cols).forEach { row ->
+    val solids = Palettes.all.filter { !it.dynamic }
+    val hasDynamic = Palettes.all.any { it.dynamic }
+    val dynamicOn = Palettes.byId(Appearance.paletteId).dynamic
+    // Solid colours or the wallpaper's (Android 12+). Going back to solid restores the last one picked.
+    if (hasDynamic) {
+        val kinds = listOf(false to "Solid", true to "Dynamic")
+        SingleChoiceSegmentedButtonRow(Modifier.fillMaxWidth()) {
+            kinds.forEachIndexed { i, (dyn, label) ->
+                SegmentedButton(
+                    selected = dynamicOn == dyn,
+                    onClick = {
+                        val id = if (dyn) Palettes.all.first { it.dynamic }.id else prefs.solidPalette
+                        Appearance.paletteId = id; prefs.palette = id
+                    },
+                    shape = SegmentedButtonDefaults.itemShape(i, kinds.size),
+                ) { Text(label) }
+            }
+        }
+    }
+    if (dynamicOn) {
+        Text(
+            "Colours follow your wallpaper.", style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(top = 10.dp, start = 4.dp),
+        )
+    } else {
+        // Four across: eight colours make an even 4×2 grid.
+        Column(Modifier.padding(top = if (hasDynamic) 12.dp else 0.dp), verticalArrangement = Arrangement.spacedBy(SwatchGap)) {
+            solids.chunked(4).forEach { row ->
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(SwatchGap)) {
                     row.forEach { p -> Swatch(p, prefs, Modifier.weight(1f)) }
-                    repeat(cols - row.size) { Spacer(Modifier.weight(1f)) }
+                    repeat(4 - row.size) { Spacer(Modifier.weight(1f)) }
                 }
             }
         }
@@ -71,14 +89,13 @@ fun AppearanceSection(prefs: Prefs) {
 }
 
 private val SwatchGap = 8.dp
-private val MinSwatchCell = 64.dp
 
 @Composable
 private fun Swatch(p: Palette, prefs: Prefs, modifier: Modifier) {
     val selected = Appearance.paletteId == p.id
     Column(
         modifier.clip(MaterialTheme.shapes.small)
-            .selectable(selected, role = Role.RadioButton) { Appearance.paletteId = p.id; prefs.palette = p.id }
+            .selectable(selected, role = Role.RadioButton) { Appearance.paletteId = p.id; prefs.palette = p.id; prefs.solidPalette = p.id }
             .padding(vertical = 6.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
@@ -88,10 +105,7 @@ private fun Swatch(p: Palette, prefs: Prefs, modifier: Modifier) {
             contentAlignment = Alignment.Center,
         ) {
             val ink = if (p.swatch.luminance() > 0.5f) Color.Black else Color.White
-            when {
-                selected -> Icon(Icons.Filled.Check, null, tint = ink)
-                p.dynamic -> Icon(Icons.Outlined.Wallpaper, null, tint = ink)
-            }
+            if (selected) Icon(Icons.Filled.Check, null, tint = ink)
         }
         Text(
             p.name, style = MaterialTheme.typography.labelMedium, textAlign = TextAlign.Center, maxLines = 1,
